@@ -263,4 +263,21 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+
+    <!-- Haru -->
+    <string name="HaruPreferences">Haru</string>
+    <string name="HaruInstallExtension">Установить расширение</string>
+    <string name="HaruExtensionsList">Список расширений</string>
+    <string name="HaruDebugMenu">Меню отладки</string>
+    <string name="HaruOpenLogs">Открыть логи</string>
+    <string name="HaruVerboseLogging">Подробное логгирование</string>
+    <string name="HaruSettings">Настройки Haru</string>
+    <string name="HaruInstallSdk">Установить SDK</string>
+    <string name="HaruLanguage">Язык</string>
+    <string name="HaruLanguageEnglish">Английский</string>
+    <string name="HaruLanguageRussian">Русский</string>
+    <string name="HaruLanguageGerman">Немецкий</string>
+    <string name="HaruLanguageAuto">Авто</string>
+    <string name="HaruChooseFile">Выбрать файл</string>
+
 </resources>

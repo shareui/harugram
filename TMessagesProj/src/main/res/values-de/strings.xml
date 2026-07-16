@@ -1375,4 +1375,21 @@
     <string name="RemindTodayAt">\'Heute um\' HH:mm \'erinnern\'</string>
     <string name="RemindDayAt">\'Am\' d MMM \'um\' HH:mm \'erinnern\'</string>
     <string name="RemindDayYearAt">\'Am\' d\'.\' MMM yyyy \'um\' HH:mm \'erinnern\'</string>
+
+    <!-- Haru -->
+    <string name="HaruPreferences">Haru</string>
+    <string name="HaruInstallExtension">Erweiterung installieren</string>
+    <string name="HaruExtensionsList">Erweiterungen</string>
+    <string name="HaruDebugMenu">Debug-Menü</string>
+    <string name="HaruOpenLogs">Protokolle öffnen</string>
+    <string name="HaruVerboseLogging">Ausführliche Protokollierung</string>
+    <string name="HaruSettings">Haru-Einstellungen</string>
+    <string name="HaruInstallSdk">SDK installieren</string>
+    <string name="HaruLanguage">Sprache</string>
+    <string name="HaruLanguageEnglish">Englisch</string>
+    <string name="HaruLanguageRussian">Russisch</string>
+    <string name="HaruLanguageGerman">Deutsch</string>
+    <string name="HaruLanguageAuto">Automatisch</string>
+    <string name="HaruChooseFile">Datei auswählen</string>
+
 </resources>
