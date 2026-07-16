@@ -1,0 +1,9 @@
+# Just an planning example
+
+version: 0.1.0
+state: alpha
+author: haru
+app_version: ">=12.8.1"
+source: github.com/shareui/harugram/master/haru-sdk
+socials:
+  - t.me/haruclient

@@ -1,0 +1,18 @@
+# Just an planning example
+
+main: src/Main.kt
+class: de.shareui.harusdk
+metadata: metadata.yml
+source: src # compile all files in this floder
+
+out: build/latest.dex
+kotlinc: ">=" # placeholder for version
+# javac:
+# both are supported, the choice depends on the file format (if one of them is not used, you can leave it blank)
+
+include: 
+  - *.kt
+  - *.javac
+
+libs:
+  - path/to/jar/kotlin-stdlib.jar
