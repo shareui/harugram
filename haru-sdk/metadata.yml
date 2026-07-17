@@ -1,5 +1,7 @@
 # Just an planning example
 
+name: harusdk
+id: de.shareui.harusdk
 version: 0.1.0
 state: alpha
 author: haru
