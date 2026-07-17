@@ -11159,4 +11159,21 @@
     <string name="ArticleAIPrompt">Write a prompt...</string>
     <string name="ArticleAIGenerate">Generate</string>
     <string name="ArticleAIAddToPage">Add to Page</string>
+
+    <!-- Haru -->
+    <string name="HaruPreferences">Haru</string>
+    <string name="HaruInstallExtension">Install extension</string>
+    <string name="HaruExtensionsList">Extensions</string>
+    <string name="HaruDebugMenu">Debug menu</string>
+    <string name="HaruOpenLogs">Open logs</string>
+    <string name="HaruVerboseLogging">Verbose logging</string>
+    <string name="HaruSettings">Haru settings</string>
+    <string name="HaruInstallSdk">Install SDK</string>
+    <string name="HaruLanguage">Language</string>
+    <string name="HaruLanguageEnglish">English</string>
+    <string name="HaruLanguageRussian">Russian</string>
+    <string name="HaruLanguageGerman">German</string>
+    <string name="HaruLanguageAuto">Auto</string>
+    <string name="HaruChooseFile">Choose file</string>
+
 </resources>
