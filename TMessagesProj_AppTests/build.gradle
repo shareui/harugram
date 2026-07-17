@@ -156,7 +156,7 @@ android {
     buildFeatures {
         buildConfig = true
     }
-    namespace 'org.telegram.messenger.test'
+    namespace 'de.shareui.harudev'
 
     lintOptions {
         checkReleaseBuilds false

@@ -41,7 +41,7 @@
 	},
 	"app_info":{
 		"app_id":"101184875",
-		"package_name":"org.telegram.messenger"
+		"package_name":"de.shareui.haru"
 	},
 	"service":{
 		"analytics":{
@@ -75,12 +75,12 @@
 	"configuration_version":"3.0",
 	"appInfos":[
 		{
-			"package_name":"org.telegram.messenger",
+			"package_name":"de.shareui.haru",
 			"client":{
 				"app_id":"101184875"
 			},
 			"app_info":{
-				"package_name":"org.telegram.messenger",
+				"package_name":"de.shareui.haru",
 				"app_id":"101184875"
 			},
 			"oauth_client":{
