@@ -1,18 +1,18 @@
 # Just an planning example
 
-main: src/Main.kt
-class: de.shareui.harusdk
+class: de.shareui.harusdk.Main   # entry point class, see 4.2 — placeholder name, actual FQCN TBD
 metadata: metadata.yml
-source: src # compile all files in this floder
+source: src # compile all files in this folder
 
 out: build/latest.dex
+
 kotlinc: ">=" # placeholder for version
 # javac:
-# both are supported, the choice depends on the file format (if one of them is not used, you can leave it blank)
+# both are supported, the choice depends on the file format
 
-include: 
+include:
   - *.kt
-  - *.javac
+  - *.java
 
 libs:
   - path/to/jar/kotlin-stdlib.jar
