@@ -20,18 +20,15 @@ import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.RecyclerListView
 
 class Settings : BaseFragment() {
-
     companion object {
         private const val REQUEST_INSTALL_SDK = 7201
     }
 
     private var listView: RecyclerListView? = null
     private var listAdapter: ListAdapter? = null
-
     private var installSdkRow = 0
     private var sectionRow = 1
-    private var languageRow = 2
-    private val rowCount = 3
+    private val rowCount = 2
 
     private fun str(resId: Int): String {
         val ctx = context ?: return ""
@@ -62,13 +59,11 @@ class Settings : BaseFragment() {
             setOnItemClickListener { _, position ->
                 when (position) {
                     installSdkRow -> openFilePicker()
-                    languageRow -> showLanguagePicker()
                 }
             }
         }
         frameLayout.addView(listView, LayoutHelper.createFrameMatchParent())
         actionBar.setAdaptiveBackground(listView)
-
         return fragmentView
     }
 
@@ -97,29 +92,10 @@ class Settings : BaseFragment() {
         }
     }
 
-    private fun showLanguagePicker() {
-        val activity = parentActivity ?: return
-        val codes = arrayOf(HaruLocale.LANG_EN, HaruLocale.LANG_RU, HaruLocale.LANG_DE)
-        val labels = arrayOf(
-            str(R.string.HaruLanguageEnglish),
-            str(R.string.HaruLanguageRussian),
-            str(R.string.HaruLanguageGerman)
-        )
-        val builder = AlertDialog.Builder(activity)
-        builder.setTitle(str(R.string.HaruLanguage))
-        builder.setItems(labels) { _, which ->
-            if (which in codes.indices) {
-                HaruLocale.setLanguage(codes[which])
-                actionBar?.setTitle(str(R.string.HaruSettings))
-                listAdapter?.notifyDataSetChanged()
-            }
-        }
-        builder.setNegativeButton(str(android.R.string.cancel), null)
-        showDialog(builder.create())
-    }
+
 
     override fun onActivityResultFragment(requestCode: Int, resultCode: Int, data: Intent?) {
-        // SDK file selected — no-op for now.
+        // SDK file selected; TODO
         if (requestCode == REQUEST_INSTALL_SDK && resultCode == Activity.RESULT_OK) {
             // intentionally empty
         }
@@ -159,12 +135,10 @@ class Settings : BaseFragment() {
                 0 -> {
                     val cell = holder.itemView as TextSettingsCell
                     when (position) {
-                        installSdkRow -> cell.setText(str(R.string.HaruInstallSdk), true)
-                        languageRow -> cell.setTextAndValue(
-                            str(R.string.HaruLanguage),
-                            HaruLocale.languageDisplayName(mContext, HaruLocale.getSavedLanguage()),
-                            false
-                        )
+                        installSdkRow -> {
+                            cell.setText(str(R.string.HaruInstallSdk), false)
+                            cell.setIcon(R.drawable.msg_download)
+                        }
                     }
                 }
             }

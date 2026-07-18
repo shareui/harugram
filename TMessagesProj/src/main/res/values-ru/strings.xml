@@ -272,6 +272,7 @@
     <string name="HaruOpenLogs">Открыть логи</string>
     <string name="HaruVerboseLogging">Подробное логгирование</string>
     <string name="HaruSettings">Настройки Haru</string>
+    <string name="HaruNavigation">Навигация</string>
     <string name="HaruInstallSdk">Установить SDK</string>
     <string name="HaruLanguage">Язык</string>
     <string name="HaruLanguageEnglish">Английский</string>

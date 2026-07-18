@@ -13,6 +13,7 @@ import org.telegram.messenger.R
 import org.telegram.ui.ActionBar.ActionBar
 import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
+import org.telegram.ui.Cells.HeaderCell
 import org.telegram.ui.Cells.ShadowSectionCell
 import org.telegram.ui.Cells.TextSettingsCell
 import org.telegram.ui.Components.LayoutHelper
@@ -27,11 +28,10 @@ class Preferences : BaseFragment() {
     private var listView: RecyclerListView? = null
     private var listAdapter: ListAdapter? = null
 
+    private var navigationHeaderRow = -1
     private var installExtensionRow = -1
     private var extensionsListRow = -1
-    private var section1Row = -1
     private var debugMenuRow = -1
-    private var section2Row = -1
     private var haruSettingsRow = -1
     private var rowCount = 0
 
@@ -43,11 +43,10 @@ class Preferences : BaseFragment() {
 
     private fun updateRows() {
         rowCount = 0
+        navigationHeaderRow = rowCount++
         installExtensionRow = rowCount++
         extensionsListRow = rowCount++
-        section1Row = rowCount++
         debugMenuRow = rowCount++
-        section2Row = rowCount++
         haruSettingsRow = rowCount++
     }
 
@@ -118,7 +117,7 @@ class Preferences : BaseFragment() {
     }
 
     override fun onActivityResultFragment(requestCode: Int, resultCode: Int, data: Intent?) {
-        // File selected for extension install — no-op for now.
+        // TODO
         if (requestCode == REQUEST_INSTALL_EXTENSION && resultCode == Activity.RESULT_OK) {
             // intentionally empty
         }
@@ -142,13 +141,17 @@ class Preferences : BaseFragment() {
 
         override fun getItemViewType(position: Int): Int {
             return when (position) {
-                section1Row, section2Row -> 1
+                navigationHeaderRow -> 2
+
                 else -> 0
             }
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val view: View = when (viewType) {
+                2 -> HeaderCell(mContext).apply {
+                    setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+                }
                 1 -> ShadowSectionCell(mContext)
                 else -> TextSettingsCell(mContext).apply {
                     setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
@@ -162,18 +165,28 @@ class Preferences : BaseFragment() {
                 0 -> {
                     val cell = holder.itemView as TextSettingsCell
                     when (position) {
-                        installExtensionRow -> cell.setText(
-                            str(R.string.HaruInstallExtension), true
-                        )
-                        extensionsListRow -> cell.setText(
-                            str(R.string.HaruExtensionsList), true
-                        )
-                        debugMenuRow -> cell.setText(
-                            str(R.string.HaruDebugMenu), true
-                        )
-                        haruSettingsRow -> cell.setText(
-                            str(R.string.HaruSettings), false
-                        )
+                        installExtensionRow -> {
+                            cell.setText(str(R.string.HaruInstallExtension), true)
+                            cell.setIcon(R.drawable.msg_download)
+                        }
+                        extensionsListRow -> {
+                            cell.setText(str(R.string.HaruExtensionsList), false)
+                            cell.setIcon(R.drawable.msg_plugins)
+                        }
+                        debugMenuRow -> {
+                            cell.setText(str(R.string.HaruDebugMenu), false)
+                            cell.setIcon(R.drawable.msg_log)
+                        }
+                        haruSettingsRow -> {
+                            cell.setText(str(R.string.HaruSettings), false)
+                            cell.setIcon(R.drawable.msg_settings)
+                        }
+                    }
+                }
+                2 -> {
+                    val cell = holder.itemView as HeaderCell
+                    when (position) {
+                        navigationHeaderRow -> cell.setText(str(R.string.HaruNavigation))
                     }
                 }
             }

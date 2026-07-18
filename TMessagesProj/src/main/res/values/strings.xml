@@ -11168,6 +11168,7 @@
     <string name="HaruOpenLogs">Open logs</string>
     <string name="HaruVerboseLogging">Verbose logging</string>
     <string name="HaruSettings">Haru settings</string>
+    <string name="HaruNavigation">Navigation</string>
     <string name="HaruInstallSdk">Install SDK</string>
     <string name="HaruLanguage">Language</string>
     <string name="HaruLanguageEnglish">English</string>
