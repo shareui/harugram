@@ -13,7 +13,6 @@ object HaruLocale {
     const val PREFS_NAME = "haru_config"
     const val KEY_LANGUAGE = "haru_language"
     const val KEY_VERBOSE_LOGGING = "haru_verbose_logging"
-
     const val LANG_AUTO = "auto"
     const val LANG_EN = "en"
     const val LANG_RU = "ru"

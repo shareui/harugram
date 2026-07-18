@@ -687,6 +687,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
+        items.add(SettingCell.Factory.of(100, 0, 0, R.drawable.haru, "Haru"));
+        items.add(UItem.asShadow(null));
+        
         items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
         items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
         items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
@@ -696,7 +699,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo)));
         items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
         items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
-        items.add(SettingCell.Factory.of(100, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_features, "Haru"));
+        // Haru was moved to the top
 
         items.add(UItem.asShadow(null));
 
@@ -1205,6 +1208,28 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
             iconBackground.setColor(iconColorTop, iconColorBottom);
             iconView.setImageResource(icon);
+            if (iconColorTop == 0 && iconColorBottom == 0) {
+                iconView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                iconView.getLayoutParams().height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                iconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                if (android.os.Build.VERSION.SDK_INT >= 21) {
+                    iconView.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                        @Override
+                        public void getOutline(View view, android.graphics.Outline outline) {
+                            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), AndroidUtilities.dp(10));
+                        }
+                    });
+                    iconView.setClipToOutline(true);
+                }
+            } else {
+                iconView.getLayoutParams().width = AndroidUtilities.dp(24);
+                iconView.getLayoutParams().height = AndroidUtilities.dp(24);
+                iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                if (android.os.Build.VERSION.SDK_INT >= 21) {
+                    iconView.setClipToOutline(false);
+                }
+            }
+            iconView.requestLayout();
             titleView.setText(title);
             subtitleView.setVisibility((twoLines = !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE);
             subtitleView.setText(subtitle);

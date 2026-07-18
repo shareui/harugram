@@ -1384,6 +1384,7 @@
     <string name="HaruOpenLogs">Protokolle öffnen</string>
     <string name="HaruVerboseLogging">Ausführliche Protokollierung</string>
     <string name="HaruSettings">Haru-Einstellungen</string>
+    <string name="HaruNavigation">Navigation</string>
     <string name="HaruInstallSdk">SDK installieren</string>
     <string name="HaruLanguage">Sprache</string>
     <string name="HaruLanguageEnglish">Englisch</string>

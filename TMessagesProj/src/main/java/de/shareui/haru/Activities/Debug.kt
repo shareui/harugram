@@ -54,10 +54,9 @@ class Debug : BaseFragment() {
             setOnItemClickListener { view, position ->
                 when (position) {
                     openLogsRow -> {
-                        // no-op for now
+                        // TODO
                     }
                     verboseLoggingRow -> {
-                        // switch is visual only for now; still persist state so UI stays consistent
                         val enabled = !HaruLocale.isVerboseLogging()
                         HaruLocale.setVerboseLogging(enabled)
                         if (view is TextCheckCell) {
@@ -107,6 +106,7 @@ class Debug : BaseFragment() {
                 0 -> {
                     val cell = holder.itemView as TextSettingsCell
                     cell.setText(str(R.string.HaruOpenLogs), true)
+                    cell.setIcon(R.drawable.menu_select_quote)
                 }
                 1 -> {
                     val cell = holder.itemView as TextCheckCell
