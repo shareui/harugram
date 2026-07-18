@@ -365,10 +365,13 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 
 fn write_main_file(request: &Request, tx: &Sender<Event>) -> Result<&'static str, Error> {
 	let (path, contents): (&'static str, String) = match request.language {
-		Language::Kotlin => ("src/Main.kt", format!("fun main() {{\n    println(\"Hello {}\")\n}}", request.author)),
+		Language::Kotlin => (
+			"src/Main.kt",
+			format!("package {}\n\nfun main() {{\n    println(\"Hello {}\")\n}}", request.sdk_id, request.author),
+		),
 		Language::Java => (
 			"src/Main.java",
-			format!("public class Main {{\n    public static void main(String[] args) {{\n        System.out.println(\"Hello {}\");\n    }}\n}}", request.author),
+			format!("package {};\n\npublic class Main {{\n    public static void main(String[] args) {{\n        System.out.println(\"Hello {}\");\n    }}\n}}", request.sdk_id, request.author),
 		),
 	};
 
