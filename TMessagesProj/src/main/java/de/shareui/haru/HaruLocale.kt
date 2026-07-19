@@ -43,7 +43,7 @@ object HaruLocale {
     }
 
     /** Fixed brand label — not from LocaleController (cloud packs still say Telegram). */
-    const val BRAND_NAME = "haruGram"
+    const val BRAND_NAME = "Haru"
 
     @JvmStatic
     fun getBrandName(): String = BRAND_NAME
