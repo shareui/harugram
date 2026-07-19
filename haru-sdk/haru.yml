@@ -1,18 +1,26 @@
-# Just an planning example
-
-class: de.shareui.harusdk.Main   # entry point class, see 4.2 — placeholder name, actual FQCN TBD
+target: sdk
+class: de.shareui.harusdk.Main
 metadata: metadata.yml
-source: src # compile all files in this folder
+source: src
 
-out: build/latest.dex
+build: build/latest.dex
 
-kotlinc: ">=" # placeholder for version
+kotlinc: ">=2.4.0"
 # javac:
 # both are supported, the choice depends on the file format
 
 include:
-  - *.kt
-  - *.java
+  - "*.kt"
+  # - "*.java"
+
+# put the haru apk file in this path
+client: stubd/haru.apk
+# d8 will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*
+# don't forget to add it to .gitignore :3
+# you can put a .jar plug here, I don't mind
+
+# это автоген ес чо ^^ ^^^^
+
 
 libs:
-  - path/to/jar/kotlin-stdlib.jar
+  - ./libs/kotlin-stdlib.jar

@@ -244,7 +244,7 @@ fn compiler_version(binary: &str) -> std::io::Result<Option<String>> {
 	Ok(extract_version(&combined))
 }
 
-// pulls the first dotted-number token (e.g. "2.1.0" or "21.0.2") out of raw compiler output
+// 21  -Ю> 21.0.0
 fn extract_version(text: &str) -> Option<String> {
 	for word in text.split_whitespace() {
 		let cleaned = word.trim_matches(|c: char| !c.is_ascii_digit() && c != '.');
@@ -346,8 +346,8 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 	log(tx, "Creating haru.yml".to_string());
 
 	let (kotlinc_line, javac_line, include_kt_line, include_java_line) = match request.language {
-		Language::Kotlin => (format!("kotlinc: \">={compiler_version}\""), "# javac:".to_string(), "  - *.kt".to_string(), "  # - *.java".to_string()),
-		Language::Java => ("# kotlinc:".to_string(), format!("javac: \">={compiler_version}\""), "  # - *.kt".to_string(), "  - *.java".to_string()),
+		Language::Kotlin => (format!("kotlinc: \">={compiler_version}\""), "# javac:".to_string(), "  - \"*.kt\"".to_string(), "  # - \"*.java\"".to_string()),
+		Language::Java => ("# kotlinc:".to_string(), format!("javac: \">={compiler_version}\""), "  # - \"*.kt\"".to_string(), "  - \"*.java\"".to_string()),
 	};
 
 	let libs_block = match kotlin_stdlib_path {
@@ -355,8 +355,10 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 		None => "# libs:\n#   - path/to/jar/kotlin-stdlib.jar".to_string(),
 	};
 
+	let client_block = "# put the haru apk file in this path\nclient: ./path/to/haru.apk\n# d8 will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\n# don't forget to add it to .gitignore :3\n# you can put a .jar plug here, I don't mind";
+
 	let contents = format!(
-		"class: {}.Main\nmetadata: metadata.yml\nsource: src\n\nbuild: build/latest.dex\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}",
+		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\nbuild: build/latest.dex\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{client_block}\n\n{libs_block}",
 		request.sdk_id,
 	);
 

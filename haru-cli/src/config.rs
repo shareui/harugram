@@ -11,11 +11,14 @@ const CONFIG_FILE_NAME: &str = "config.json";
 pub struct Config {
 	#[serde(default = "default_first_opening")]
 	pub first_opening: bool,
+
+	#[serde(default = "default_theme")]
+	pub theme: String,
 }
 
 impl Default for Config {
 	fn default() -> Self {
-		Self { first_opening: default_first_opening() }
+		Self { first_opening: default_first_opening(), theme: default_theme() }
 	}
 }
 
@@ -23,7 +26,10 @@ fn default_first_opening() -> bool {
 	true
 }
 
-// resolves the app's config directory for the current platform
+fn default_theme() -> String {
+	"ash violet".to_string()
+}
+
 // windows: %APPDATA%\haru
 // macos:   ~/Library/Application Support/haru
 // linux:   ~/.config/haru (or $XDG_CONFIG_HOME/haru)
@@ -53,7 +59,6 @@ pub fn ensure() -> io::Result<()> {
 	fs::write(config_path, json)
 }
 
-// reads config.json, falling back to defaults if it is missing or malformed
 pub fn load() -> Config {
 	let Some(path) = path() else {
 		return Config::default();
@@ -72,5 +77,28 @@ pub fn save(config: &Config) -> io::Result<()> {
 		fs::create_dir_all(dir)?;
 	}
 	let json = serde_json::to_string_pretty(config).map_err(io::Error::other)?;
+	fs::write(path, json)
+}
+
+pub fn save_theme(theme: &str) -> io::Result<()> {
+	let mut cfg = load();
+	cfg.theme = if theme.is_empty() { default_theme() } else { theme.to_string() };
+	save(&cfg)
+}
+
+pub fn load_raw() -> Option<serde_json::Value> {
+	let path = path()?;
+	let contents = fs::read_to_string(path).ok()?;
+	serde_json::from_str(&contents).ok()
+}
+
+pub fn save_raw(value: &serde_json::Value) -> io::Result<()> {
+	let Some(path) = path() else {
+		return Err(io::Error::other("could not resolve platform config directory"));
+	};
+	if let Some(dir) = path.parent() {
+		fs::create_dir_all(dir)?;
+	}
+	let json = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
 	fs::write(path, json)
 }
