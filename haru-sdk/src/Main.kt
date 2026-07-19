@@ -1,5 +1,5 @@
-package de.shareui.harusdk.Main
+package de.shareui.harusdk
 
 fun main() {
-    println("Hello Haru!")
+    println("Hello haru") // и тебе привет
 }

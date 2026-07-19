@@ -9,6 +9,8 @@ clap = { version = "4.6", features = ["derive"] }
 dirs = "6.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+owo-colors = "4.1"
+serde-saphyr = { version = "1.0.0-rc.1", default-features = false, features = ["deserialize"] }
 
 [target.'cfg(windows)'.dependencies]
 walkdir = "2.5"
