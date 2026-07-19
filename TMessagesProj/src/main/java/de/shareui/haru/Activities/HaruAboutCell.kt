@@ -2,11 +2,11 @@ package de.shareui.haru.Activities
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Outline
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewOutlineProvider
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -19,34 +19,51 @@ import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Components.LayoutHelper
 
 /**
- * Full-width centered Haru branding block: app icon, name, version
- * (e.g. 12.9.0 (6966)).
+ * Full-width Haru branding header for Preferences.
+ *
+ * Structure: vertical [LinearLayout]
+ *   - app icon (rounded square, no elevation/border)
+ *   - brand name
+ *   - version
+ *
+ * Note: do NOT use R.mipmap.ic_launcher — AdaptiveIconDrawable paints as a circle.
  */
-class HaruAboutCell(context: Context) : FrameLayout(context) {
+class HaruAboutCell(context: Context) : LinearLayout(context) {
 
     private val nameView: TextView
     private val versionView: TextView
     private val iconView: ImageView
 
     init {
-        // Root fills the list row; content is centered horizontally.
-        val column = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
+        orientation = VERTICAL
+        gravity = Gravity.CENTER_HORIZONTAL
+        setBackgroundColor(0)
+        tag = org.telegram.ui.Components.RecyclerListView.TAG_NOT_SECTION
+        setPadding(0, AndroidUtilities.dp(28f), 0, AndroidUtilities.dp(24f))
+
+        val cornerRadius = AndroidUtilities.dp(16f).toFloat()
 
         iconView = ImageView(context).apply {
+            // Zoom past adaptive-icon safe padding so art fills the rounded square.
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setImageResource(R.mipmap.ic_launcher_round)
+            setImageResource(R.drawable.haru_app_icon)
+            scaleX = 1.22f
+            scaleY = 1.22f
+            elevation = 0f
             clipToOutline = true
             outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: android.graphics.Outline) {
-                    val size = view.width.coerceAtLeast(1)
-                    outline.setRoundRect(0, 0, size, size, size / 2f)
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(
+                        0,
+                        0,
+                        view.width.coerceAtLeast(1),
+                        view.height.coerceAtLeast(1),
+                        cornerRadius
+                    )
                 }
             }
         }
-        column.addView(
+        addView(
             iconView,
             LayoutHelper.createLinear(72, 72, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 12)
         )
@@ -56,9 +73,9 @@ class HaruAboutCell(context: Context) : FrameLayout(context) {
             typeface = AndroidUtilities.bold()
             setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
             gravity = Gravity.CENTER_HORIZONTAL
-            text = HaruLocale.getString(context, R.string.AppName)
+            text = HaruLocale.getBrandName()
         }
-        column.addView(
+        addView(
             nameView,
             LayoutHelper.createLinear(
                 LayoutHelper.WRAP_CONTENT,
@@ -73,7 +90,7 @@ class HaruAboutCell(context: Context) : FrameLayout(context) {
             gravity = Gravity.CENTER_HORIZONTAL
             text = resolveVersionLabel()
         }
-        column.addView(
+        addView(
             versionView,
             LayoutHelper.createLinear(
                 LayoutHelper.WRAP_CONTENT,
@@ -82,33 +99,23 @@ class HaruAboutCell(context: Context) : FrameLayout(context) {
                 0, 4, 0, 0
             )
         )
-
-        addView(
-            column,
-            LayoutHelper.createFrame(
-                LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT.toFloat(),
-                Gravity.CENTER_HORIZONTAL or Gravity.TOP,
-                0f, 28f, 0f, 24f
-            )
-        )
-        // Transparent — section decoration paints the white rounded card.
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
-        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val widthSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
         super.onMeasure(widthSpec, heightMeasureSpec)
+        iconView.invalidateOutline()
     }
 
     fun bind() {
-        nameView.text = HaruLocale.getString(context, R.string.AppName)
+        nameView.text = HaruLocale.getBrandName()
         versionView.text = resolveVersionLabel()
         nameView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
         versionView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3))
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+        setBackgroundColor(0)
+        tag = org.telegram.ui.Components.RecyclerListView.TAG_NOT_SECTION
+        iconView.invalidateOutline()
     }
 
     private fun resolveVersionLabel(): String {

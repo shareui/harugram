@@ -42,6 +42,12 @@ object HaruLocale {
         prefs().edit().putBoolean(KEY_VERBOSE_LOGGING, enabled).apply()
     }
 
+    /** Fixed brand label — not from LocaleController (cloud packs still say Telegram). */
+    const val BRAND_NAME = "haruGram"
+
+    @JvmStatic
+    fun getBrandName(): String = BRAND_NAME
+
     /** Show peer ID in profile; enabled by default. */
     @JvmStatic
     fun isShowId(): Boolean =

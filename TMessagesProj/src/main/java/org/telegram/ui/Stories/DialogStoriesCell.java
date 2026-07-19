@@ -335,10 +335,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         telegramLogoView = new ImageView(context);
         telegramLogoView.setContentDescription(getString(R.string.AppName));
         telegramLogoView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        telegramLogoView.setImageResource(R.drawable.telegram_logo_2);
-        telegramLogoView.setColorFilter(getTextLogoColor(), PorterDuff.Mode.MULTIPLY);
-        telegramLogoView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-        telegramLogoView.setFocusableInTouchMode(true);
+        // Logo image unused — brand is shown as AppName text via titleView.
+        telegramLogoView.setVisibility(View.GONE);
+        telegramLogoView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         addView(telegramLogoView, LayoutHelper.createFrame(90, 22));
 
         statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
@@ -626,12 +625,14 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                     currentTitle = str;
                 }
             } else {
-                currentTitle = menuItemsOffset < dp(50) ? null :
-                    LocaleController.getString(R.string.MyStory);
+                currentTitle = menuItemsOffset < dp(50)
+                    ? de.shareui.haru.HaruLocale.getBrandName()
+                    : LocaleController.getString(R.string.MyStory);
             }
         } else {
-            currentTitle = menuItemsOffset < dp(50) ? null :
-                LocaleController.formatPluralString("Stories", totalCount);
+            currentTitle = menuItemsOffset < dp(50)
+                ? de.shareui.haru.HaruLocale.getBrandName()
+                : LocaleController.formatPluralString("Stories", totalCount);
         }
 
         if (!hasOverlayText) {
@@ -944,7 +945,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             telegramLogoView.setTranslationX(titleView.getTranslationX() + dp(1));
             telegramLogoView.setTranslationY(bottomY + dp(14 + FAKE_TOP_PADDING + 4.333f) + translationOffset /*titleView.getTranslationY() + dpf2(37.33f)*/);
 
-            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + telegramLogoView.getMeasuredWidth());
+            final float titleWidth = titleView.getDrawable() != null ? titleView.getDrawable().getCurrentWidth() : 0;
+            emojiStatusView.setTranslationX(titleView.getTranslationX() - dpf2(3.33f) + titleWidth);
             emojiStatusView.setTranslationY(bottomY + dp(14 - 11 + FAKE_TOP_PADDING + 4.333f) + translationOffset);
 
             subtitleOverlayContainer.setTranslationX(titleView.getTranslationX());
@@ -2217,12 +2219,14 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setVisibility(titleAlpha > 0 ? VISIBLE : GONE);
         }
         if (telegramLogoView != null) {
-            telegramLogoView.setAlpha(logoAlpha);
-            telegramLogoView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            // Brand is text (AppName), not Telegram wordmark.
+            telegramLogoView.setVisibility(GONE);
         }
         if (emojiStatusView != null) {
-            emojiStatusView.setAlpha(logoAlpha);
-            emojiStatusView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            // Keep emoji status next to the title text.
+            final float statusAlpha = Math.max(logoAlpha, titleAlpha);
+            emojiStatusView.setAlpha(statusAlpha);
+            emojiStatusView.setVisibility(statusAlpha > 0 ? VISIBLE : GONE);
         }
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.setAlpha(progress);

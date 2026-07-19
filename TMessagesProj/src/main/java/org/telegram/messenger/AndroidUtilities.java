@@ -6712,7 +6712,7 @@ public class AndroidUtilities {
                     break;
             }
             // Brand is fixed in code so cloud/locale packs cannot restore "Telegram for Android".
-            return String.format(Locale.US, "haruGram v%s (%d) %s", pInfo.versionName, code, abi);
+            return String.format(Locale.US, "%s v%s (%d) %s", de.shareui.haru.HaruLocale.BRAND_NAME, pInfo.versionName, code, abi);
         } catch (Exception e) {
             FileLog.e(e);
         }

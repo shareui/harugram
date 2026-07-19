@@ -940,7 +940,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                     break;
             }
             // Brand is fixed in code so cloud/locale packs cannot restore "Telegram for Android".
-            return String.format(Locale.US, "haruGram v%s (%d)\n%s", pInfo.versionName, code, abi);
+            return String.format(Locale.US, "%s v%s (%d)\n%s", de.shareui.haru.HaruLocale.BRAND_NAME, pInfo.versionName, code, abi);
         } catch (Exception e) {
             FileLog.e(e);
         }
