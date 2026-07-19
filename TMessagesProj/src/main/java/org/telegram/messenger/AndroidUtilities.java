@@ -6711,11 +6711,8 @@ public class AndroidUtilities {
                     }
                     break;
             }
-            // Use APK string directly — cloud language packs still ship "Telegram for Android".
-            return ApplicationLoader.applicationContext.getString(
-                    R.string.TelegramVersion,
-                    String.format(Locale.US, "v%s (%d) %s", pInfo.versionName, code, abi)
-            );
+            // Brand is fixed in code so cloud/locale packs cannot restore "Telegram for Android".
+            return String.format(Locale.US, "haruGram v%s (%d) %s", pInfo.versionName, code, abi);
         } catch (Exception e) {
             FileLog.e(e);
         }
