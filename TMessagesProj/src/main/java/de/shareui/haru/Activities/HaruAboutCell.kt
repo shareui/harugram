@@ -2,6 +2,7 @@ package de.shareui.haru.Activities
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Matrix
 import android.graphics.Outline
 import android.util.TypedValue
 import android.view.Gravity
@@ -39,8 +40,6 @@ class HaruAboutCell(context: Context) : LinearLayout(context) {
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        clipToPadding = false
-        clipChildren = false
         setBackgroundColor(0)
         tag = org.telegram.ui.Components.RecyclerListView.TAG_NOT_SECTION
         setPadding(0, AndroidUtilities.dp(28f), 0, AndroidUtilities.dp(24f))
@@ -48,12 +47,26 @@ class HaruAboutCell(context: Context) : LinearLayout(context) {
         val cornerRadius = AndroidUtilities.dp(18f).toFloat()
 
         iconView = ImageView(context).apply {
-            // Zoom past adaptive-icon safe padding so art fills the rounded square.
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            setImageResource(R.drawable.haru_app_icon)
-            scaleX = 1.22f
-            scaleY = 1.22f
+            setImageResource(R.drawable.haru)
             elevation = 0f
+
+            scaleType = ImageView.ScaleType.MATRIX
+            addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                val w = view.width.toFloat()
+                val h = view.height.toFloat()
+                val d = drawable
+                if (d != null && w > 0 && h > 0) {
+                    val dw = d.intrinsicWidth.toFloat()
+                    val dh = d.intrinsicHeight.toFloat()
+                    val scale = 1.22f * (w / dw).coerceAtLeast(h / dh)
+                    val matrix = Matrix().apply {
+                        setScale(scale, scale)
+                        postTranslate((w - dw * scale) / 2f, (h - dh * scale) / 2f)
+                    }
+                    imageMatrix = matrix
+                }
+            }
+
             clipToOutline = true
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
