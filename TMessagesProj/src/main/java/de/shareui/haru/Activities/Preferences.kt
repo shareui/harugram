@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
 import org.telegram.messenger.R
+import org.telegram.messenger.browser.Browser
 import org.telegram.ui.ActionBar.ActionBar
 import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
@@ -33,6 +34,10 @@ class Preferences : BaseFragment() {
     private var extensionsListRow = -1
     private var debugMenuRow = -1
     private var haruSettingsRow = -1
+    private var sectionRow = -1
+    private var linksHeaderRow = -1
+    private var telegramChannelRow = -1
+    private var sourceCodeRow = -1
     private var rowCount = 0
 
     override fun onFragmentCreate(): Boolean {
@@ -48,6 +53,10 @@ class Preferences : BaseFragment() {
         extensionsListRow = rowCount++
         debugMenuRow = rowCount++
         haruSettingsRow = rowCount++
+        sectionRow = rowCount++
+        linksHeaderRow = rowCount++
+        telegramChannelRow = rowCount++
+        sourceCodeRow = rowCount++
     }
 
     private fun str(resId: Int): String {
@@ -82,6 +91,8 @@ class Preferences : BaseFragment() {
                     extensionsListRow -> presentFragment(Extensions())
                     debugMenuRow -> presentFragment(Debug())
                     haruSettingsRow -> presentFragment(Settings())
+                    telegramChannelRow -> openUrl(str(R.string.HaruTelegramChannelUrl))
+                    sourceCodeRow -> openUrl(str(R.string.HaruSourceCodeUrl))
                 }
             }
         }
@@ -89,6 +100,12 @@ class Preferences : BaseFragment() {
         actionBar.setAdaptiveBackground(listView)
 
         return fragmentView
+    }
+
+    private fun openUrl(url: String) {
+        val activity = parentActivity ?: return
+        if (url.isEmpty()) return
+        Browser.openUrl(activity, url)
     }
 
     private fun openFilePicker(requestCode: Int) {
@@ -141,8 +158,8 @@ class Preferences : BaseFragment() {
 
         override fun getItemViewType(position: Int): Int {
             return when (position) {
-                navigationHeaderRow -> 2
-
+                sectionRow -> 1
+                navigationHeaderRow, linksHeaderRow -> 2
                 else -> 0
             }
         }
@@ -181,12 +198,21 @@ class Preferences : BaseFragment() {
                             cell.setText(str(R.string.HaruSettings), false)
                             cell.setIcon(R.drawable.msg_settings)
                         }
+                        telegramChannelRow -> {
+                            cell.setText(str(R.string.HaruTelegramChannel), true)
+                            cell.setIcon(R.drawable.msg_channel)
+                        }
+                        sourceCodeRow -> {
+                            cell.setText(str(R.string.HaruSourceCode), false)
+                            cell.setIcon(R.drawable.msg_link2)
+                        }
                     }
                 }
                 2 -> {
                     val cell = holder.itemView as HeaderCell
                     when (position) {
                         navigationHeaderRow -> cell.setText(str(R.string.HaruNavigation))
+                        linksHeaderRow -> cell.setText(str(R.string.HaruLinks))
                     }
                 }
             }

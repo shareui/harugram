@@ -10,11 +10,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
 import org.telegram.messenger.R
-import org.telegram.messenger.browser.Browser
 import org.telegram.ui.ActionBar.ActionBar
 import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
-import org.telegram.ui.Cells.HeaderCell
 import org.telegram.ui.Cells.ShadowSectionCell
 import org.telegram.ui.Cells.TextCheckCell
 import org.telegram.ui.Cells.TextSettingsCell
@@ -32,9 +30,6 @@ class Settings : BaseFragment() {
     private var showIdRow = -1
     private var installSdkRow = -1
     private var sectionRow = -1
-    private var linksHeaderRow = -1
-    private var telegramChannelRow = -1
-    private var sourceCodeRow = -1
     private var rowCount = 0
 
     override fun onFragmentCreate(): Boolean {
@@ -45,12 +40,9 @@ class Settings : BaseFragment() {
 
     private fun updateRows() {
         rowCount = 0
-        showIdRow = rowCount++
         installSdkRow = rowCount++
+        showIdRow = rowCount++
         sectionRow = rowCount++
-        linksHeaderRow = rowCount++
-        telegramChannelRow = rowCount++
-        sourceCodeRow = rowCount++
     }
 
     private fun str(resId: Int): String {
@@ -89,20 +81,12 @@ class Settings : BaseFragment() {
                         }
                     }
                     installSdkRow -> openFilePicker()
-                    telegramChannelRow -> openUrl(str(R.string.HaruTelegramChannelUrl))
-                    sourceCodeRow -> openUrl(str(R.string.HaruSourceCodeUrl))
                 }
             }
         }
         frameLayout.addView(listView, LayoutHelper.createFrameMatchParent())
         actionBar.setAdaptiveBackground(listView)
         return fragmentView
-    }
-
-    private fun openUrl(url: String) {
-        val activity = parentActivity ?: return
-        if (url.isEmpty()) return
-        Browser.openUrl(activity, url)
     }
 
     private fun openFilePicker() {
@@ -156,7 +140,6 @@ class Settings : BaseFragment() {
         override fun getItemViewType(position: Int): Int {
             return when (position) {
                 sectionRow -> 1
-                linksHeaderRow -> 2
                 showIdRow -> 3
                 else -> 0
             }
@@ -165,9 +148,6 @@ class Settings : BaseFragment() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val view: View = when (viewType) {
                 3 -> TextCheckCell(mContext).apply {
-                    setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
-                }
-                2 -> HeaderCell(mContext).apply {
                     setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
                 }
                 1 -> ShadowSectionCell(mContext)
@@ -184,23 +164,9 @@ class Settings : BaseFragment() {
                     val cell = holder.itemView as TextSettingsCell
                     when (position) {
                         installSdkRow -> {
-                            cell.setText(str(R.string.HaruInstallSdk), false)
+                            cell.setText(str(R.string.HaruInstallSdk), true)
                             cell.setIcon(R.drawable.msg_download)
                         }
-                        telegramChannelRow -> {
-                            cell.setText(str(R.string.HaruTelegramChannel), true)
-                            cell.setIcon(R.drawable.msg_channel)
-                        }
-                        sourceCodeRow -> {
-                            cell.setText(str(R.string.HaruSourceCode), false)
-                            cell.setIcon(R.drawable.msg_link2)
-                        }
-                    }
-                }
-                2 -> {
-                    val cell = holder.itemView as HeaderCell
-                    when (position) {
-                        linksHeaderRow -> cell.setText(str(R.string.HaruLinks))
                     }
                 }
                 3 -> {
@@ -208,7 +174,7 @@ class Settings : BaseFragment() {
                     cell.setTextAndCheck(
                         str(R.string.HaruShowId),
                         HaruLocale.isShowId(),
-                        true
+                        false
                     )
                 }
             }
