@@ -651,6 +651,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int userInfoRow;
     private int channelInfoRow;
     private int usernameRow;
+    private int userIdRow;
     private int notificationsDividerRow;
     private int notificationsRow;
     private int bizHoursRow;
@@ -4449,6 +4450,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 openAddMember();
             } else if (position == usernameRow) {
                 processOnClickOrPress(position, view, x, y);
+            } else if (position == userIdRow) {
+                processOnClickOrPress(position, view, x, y);
             } else if (position == linkedCommunityRow) {
                 if (currentChat != null) {
                     showDialog(new CommunitySheet(this, currentChat.linked_community_id));
@@ -7259,6 +7262,39 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
+        if (position == userIdRow) {
+            long peerId = 0;
+            if (userId != 0) {
+                TLRPC.User user = getMessagesController().getUser(userId);
+                if (user != null) {
+                    peerId = user.id;
+                } else {
+                    peerId = userId;
+                }
+            } else if (chatId != 0) {
+                TLRPC.Chat chat = getMessagesController().getChat(chatId);
+                if (chat != null) {
+                    peerId = chat.id;
+                } else {
+                    peerId = chatId;
+                }
+            }
+            if (peerId == 0) {
+                return false;
+            }
+            try {
+                String rawId = Long.toString(peerId);
+                AndroidUtilities.addToClipboard(rawId);
+                Context ctx = getContext();
+                String bulletin = ctx != null
+                        ? de.shareui.haru.HaruLocale.INSTANCE.getString(ctx, R.string.HaruIdCopied)
+                        : getString(R.string.HaruIdCopied);
+                BulletinFactory.of(this).createCopyBulletin(bulletin, resourcesProvider).show();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return true;
+        }
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
             final TLRPC.TL_username usernameObj;
@@ -10489,6 +10525,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         locationRow = -1;
         channelInfoRow = -1;
         usernameRow = -1;
+        userIdRow = -1;
         settingsTimerRow = -1;
         settingsKeyRow = -1;
         notificationsDividerRow = -1;
@@ -10681,6 +10718,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
+                if (de.shareui.haru.HaruLocale.isShowId() && user != null) {
+                    userIdRow = rowCount++;
+                }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
                         birthdayRow = rowCount++;
@@ -10805,6 +10845,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             usernameRow = rowCount++;
+            if (de.shareui.haru.HaruLocale.isShowId()) {
+                userIdRow = rowCount++;
+            }
             if (actionsView == null) {
                 notificationsSimpleRow = rowCount++;
             }
@@ -10839,6 +10882,21 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
                 }
+                if (de.shareui.haru.HaruLocale.isShowId() && currentChat != null) {
+                    userIdRow = rowCount++;
+                }
+            } else if (de.shareui.haru.HaruLocale.isShowId() && currentChat != null) {
+                if (emptyRow < 0 && emptyRow2 < 0) {
+                    if (hasMusic || peerColor != null || actionsView == null) {
+                        emptyRow2 = rowCount++;
+                    } else {
+                        emptyRow = rowCount++;
+                    }
+                }
+                if (actionsView == null) {
+                    infoHeaderRow = rowCount++;
+                }
+                userIdRow = rowCount++;
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
                 if (hasMusic || peerColor != null || actionsView == null) {
@@ -13462,7 +13520,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             phoneNumber = null;
                         }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
-                        detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
+                        detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), usernameRow != -1 || userIdRow != -1 || userInfoRow != -1);
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -13539,7 +13597,37 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             value = "";
                             usernames = new ArrayList<>();
                         }
-                        detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                        boolean idBelow = userIdRow != -1;
+                        detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), idBelow || (infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0));
+                    } else if (position == userIdRow) {
+                        long peerId = 0;
+                        int dcId = 0;
+                        if (userId != 0) {
+                            TLRPC.User user = getMessagesController().getUser(userId);
+                            if (user != null) {
+                                peerId = user.id;
+                                dcId = de.shareui.haru.HaruLocale.getUserDcId(user);
+                            } else {
+                                peerId = userId;
+                            }
+                        } else if (chatId != 0) {
+                            TLRPC.Chat chat = getMessagesController().getChat(chatId);
+                            if (chat != null) {
+                                peerId = chat.id;
+                                dcId = de.shareui.haru.HaruLocale.getChatDcId(chat);
+                            } else {
+                                peerId = chatId;
+                            }
+                        }
+                        Context ctx = getContext() != null ? getContext() : mContext;
+                        String idText = de.shareui.haru.HaruLocale.buildIdPrimary(ctx, peerId);
+                        String idMeta = de.shareui.haru.HaruLocale.buildIdMeta(ctx, peerId, dcId);
+                        boolean divider = birthdayRow != -1 || bizHoursRow != -1 || bizLocationRow != -1 || noteRow != -1 || notificationsRow != -1 || notificationsSimpleRow != -1 || botAppRow != -1;
+                        if (!divider) {
+                            divider = infoEndRow > position;
+                        }
+                        detailCell.setTextAndValue(idText, idMeta, divider);
+                        detailCell.setContentDescriptionValueFirst(false);
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -14278,7 +14366,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == userIdRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;

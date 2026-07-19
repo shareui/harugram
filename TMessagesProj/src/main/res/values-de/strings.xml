@@ -1395,5 +1395,7 @@
     <string name="HaruLinks">Links</string>
     <string name="HaruTelegramChannel">Telegram-Kanal</string>
     <string name="HaruSourceCode">Quellcode</string>
+    <string name="HaruShowId">ID anzeigen</string>
+    <string name="HaruIdCopied">ID in die Zwischenablage kopiert</string>
 
 </resources>

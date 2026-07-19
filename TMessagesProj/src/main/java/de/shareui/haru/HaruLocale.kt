@@ -6,13 +6,16 @@ import android.os.Build
 import org.telegram.messenger.ApplicationLoader
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
+import org.telegram.tgnet.TLRPC
 import java.util.Locale
+import kotlin.jvm.JvmStatic
 
 object HaruLocale {
 
     const val PREFS_NAME = "haru_config"
     const val KEY_LANGUAGE = "haru_language"
     const val KEY_VERBOSE_LOGGING = "haru_verbose_logging"
+    const val KEY_SHOW_ID = "haru_show_id"
     const val LANG_AUTO = "auto"
     const val LANG_EN = "en"
     const val LANG_RU = "ru"
@@ -35,6 +38,60 @@ object HaruLocale {
 
     fun setVerboseLogging(enabled: Boolean) {
         prefs().edit().putBoolean(KEY_VERBOSE_LOGGING, enabled).apply()
+    }
+
+    /** Show peer ID in profile; enabled by default. */
+    @JvmStatic
+    fun isShowId(): Boolean =
+        prefs().getBoolean(KEY_SHOW_ID, true)
+
+    @JvmStatic
+    fun setShowId(enabled: Boolean) {
+        prefs().edit().putBoolean(KEY_SHOW_ID, enabled).apply()
+    }
+
+    /** Dotted grouping: 400216230 → 400.216.230 */
+    @JvmStatic
+    fun formatIdDotted(id: Long): String =
+        LocaleController.formatNumber(id, '.')
+
+    @JvmStatic
+    fun idDigitCount(id: Long): Int =
+        id.toString().replace("-", "").length
+
+    @JvmStatic
+    fun getUserDcId(user: TLRPC.User?): Int {
+        if (user?.photo == null || user.photo is TLRPC.TL_userProfilePhotoEmpty) {
+            return 0
+        }
+        return user.photo.dc_id
+    }
+
+    @JvmStatic
+    fun getChatDcId(chat: TLRPC.Chat?): Int {
+        val photo = chat?.photo ?: return 0
+        if (photo is TLRPC.TL_chatPhotoEmpty) {
+            return 0
+        }
+        return photo.dc_id
+    }
+
+    /** Primary line: `id: 400.216.230` */
+    @JvmStatic
+    fun buildIdPrimary(context: Context, id: Long): String =
+        getString(context, R.string.HaruIdPrefix) + formatIdDotted(id)
+
+    /**
+     * Secondary (gray) line: `(9, DC2)` or `(9)` when [dcId] is 0.
+     */
+    @JvmStatic
+    fun buildIdMeta(context: Context, id: Long, dcId: Int): String {
+        val digits = idDigitCount(id)
+        return if (dcId > 0) {
+            getString(context, R.string.HaruIdMeta, digits, dcId)
+        } else {
+            getString(context, R.string.HaruIdMetaNoDc, digits)
+        }
     }
 
     /** Resolved language used for Haru UI (always en/ru/de). */
@@ -82,4 +139,7 @@ object HaruLocale {
 
     fun getString(context: Context, resId: Int): String =
         wrap(context).getString(resId)
+
+    fun getString(context: Context, resId: Int, vararg formatArgs: Any): String =
+        wrap(context).getString(resId, *formatArgs)
 }

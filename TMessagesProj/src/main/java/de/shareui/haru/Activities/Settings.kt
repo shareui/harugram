@@ -16,6 +16,7 @@ import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Cells.HeaderCell
 import org.telegram.ui.Cells.ShadowSectionCell
+import org.telegram.ui.Cells.TextCheckCell
 import org.telegram.ui.Cells.TextSettingsCell
 import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.RecyclerListView
@@ -28,6 +29,7 @@ class Settings : BaseFragment() {
     private var listView: RecyclerListView? = null
     private var listAdapter: ListAdapter? = null
 
+    private var showIdRow = -1
     private var installSdkRow = -1
     private var sectionRow = -1
     private var linksHeaderRow = -1
@@ -43,6 +45,7 @@ class Settings : BaseFragment() {
 
     private fun updateRows() {
         rowCount = 0
+        showIdRow = rowCount++
         installSdkRow = rowCount++
         sectionRow = rowCount++
         linksHeaderRow = rowCount++
@@ -76,8 +79,15 @@ class Settings : BaseFragment() {
             setVerticalScrollBarEnabled(false)
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
             adapter = listAdapter
-            setOnItemClickListener { _, position ->
+            setOnItemClickListener { view, position ->
                 when (position) {
+                    showIdRow -> {
+                        val enabled = !HaruLocale.isShowId()
+                        HaruLocale.setShowId(enabled)
+                        if (view is TextCheckCell) {
+                            view.setChecked(enabled)
+                        }
+                    }
                     installSdkRow -> openFilePicker()
                     telegramChannelRow -> openUrl(str(R.string.HaruTelegramChannelUrl))
                     sourceCodeRow -> openUrl(str(R.string.HaruSourceCodeUrl))
@@ -139,19 +149,24 @@ class Settings : BaseFragment() {
         override fun getItemCount(): Int = rowCount
 
         override fun isEnabled(holder: RecyclerView.ViewHolder): Boolean {
-            return holder.itemViewType == 0
+            val type = holder.itemViewType
+            return type == 0 || type == 3
         }
 
         override fun getItemViewType(position: Int): Int {
             return when (position) {
                 sectionRow -> 1
                 linksHeaderRow -> 2
+                showIdRow -> 3
                 else -> 0
             }
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val view: View = when (viewType) {
+                3 -> TextCheckCell(mContext).apply {
+                    setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+                }
                 2 -> HeaderCell(mContext).apply {
                     setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
                 }
@@ -187,6 +202,14 @@ class Settings : BaseFragment() {
                     when (position) {
                         linksHeaderRow -> cell.setText(str(R.string.HaruLinks))
                     }
+                }
+                3 -> {
+                    val cell = holder.itemView as TextCheckCell
+                    cell.setTextAndCheck(
+                        str(R.string.HaruShowId),
+                        HaruLocale.isShowId(),
+                        true
+                    )
                 }
             }
         }
