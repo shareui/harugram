@@ -280,5 +280,8 @@
     <string name="HaruLanguageGerman">Немецкий</string>
     <string name="HaruLanguageAuto">Авто</string>
     <string name="HaruChooseFile">Выбрать файл</string>
+    <string name="HaruLinks">Ссылки</string>
+    <string name="HaruTelegramChannel">Telegram канал</string>
+    <string name="HaruSourceCode">Исходный код</string>
 
 </resources>

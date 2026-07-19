@@ -10,10 +10,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
 import org.telegram.messenger.R
+import org.telegram.messenger.browser.Browser
 import org.telegram.ui.ActionBar.ActionBar
-import org.telegram.ui.ActionBar.AlertDialog
 import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
+import org.telegram.ui.Cells.HeaderCell
 import org.telegram.ui.Cells.ShadowSectionCell
 import org.telegram.ui.Cells.TextSettingsCell
 import org.telegram.ui.Components.LayoutHelper
@@ -26,9 +27,28 @@ class Settings : BaseFragment() {
 
     private var listView: RecyclerListView? = null
     private var listAdapter: ListAdapter? = null
-    private var installSdkRow = 0
-    private var sectionRow = 1
-    private val rowCount = 2
+
+    private var installSdkRow = -1
+    private var sectionRow = -1
+    private var linksHeaderRow = -1
+    private var telegramChannelRow = -1
+    private var sourceCodeRow = -1
+    private var rowCount = 0
+
+    override fun onFragmentCreate(): Boolean {
+        super.onFragmentCreate()
+        updateRows()
+        return true
+    }
+
+    private fun updateRows() {
+        rowCount = 0
+        installSdkRow = rowCount++
+        sectionRow = rowCount++
+        linksHeaderRow = rowCount++
+        telegramChannelRow = rowCount++
+        sourceCodeRow = rowCount++
+    }
 
     private fun str(resId: Int): String {
         val ctx = context ?: return ""
@@ -59,12 +79,20 @@ class Settings : BaseFragment() {
             setOnItemClickListener { _, position ->
                 when (position) {
                     installSdkRow -> openFilePicker()
+                    telegramChannelRow -> openUrl(str(R.string.HaruTelegramChannelUrl))
+                    sourceCodeRow -> openUrl(str(R.string.HaruSourceCodeUrl))
                 }
             }
         }
         frameLayout.addView(listView, LayoutHelper.createFrameMatchParent())
         actionBar.setAdaptiveBackground(listView)
         return fragmentView
+    }
+
+    private fun openUrl(url: String) {
+        val activity = parentActivity ?: return
+        if (url.isEmpty()) return
+        Browser.openUrl(activity, url)
     }
 
     private fun openFilePicker() {
@@ -92,8 +120,6 @@ class Settings : BaseFragment() {
         }
     }
 
-
-
     override fun onActivityResultFragment(requestCode: Int, resultCode: Int, data: Intent?) {
         // SDK file selected; TODO
         if (requestCode == REQUEST_INSTALL_SDK && resultCode == Activity.RESULT_OK) {
@@ -117,11 +143,18 @@ class Settings : BaseFragment() {
         }
 
         override fun getItemViewType(position: Int): Int {
-            return if (position == sectionRow) 1 else 0
+            return when (position) {
+                sectionRow -> 1
+                linksHeaderRow -> 2
+                else -> 0
+            }
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val view: View = when (viewType) {
+                2 -> HeaderCell(mContext).apply {
+                    setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+                }
                 1 -> ShadowSectionCell(mContext)
                 else -> TextSettingsCell(mContext).apply {
                     setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
@@ -139,6 +172,20 @@ class Settings : BaseFragment() {
                             cell.setText(str(R.string.HaruInstallSdk), false)
                             cell.setIcon(R.drawable.msg_download)
                         }
+                        telegramChannelRow -> {
+                            cell.setText(str(R.string.HaruTelegramChannel), true)
+                            cell.setIcon(R.drawable.msg_channel)
+                        }
+                        sourceCodeRow -> {
+                            cell.setText(str(R.string.HaruSourceCode), false)
+                            cell.setIcon(R.drawable.msg_link2)
+                        }
+                    }
+                }
+                2 -> {
+                    val cell = holder.itemView as HeaderCell
+                    when (position) {
+                        linksHeaderRow -> cell.setText(str(R.string.HaruLinks))
                     }
                 }
             }

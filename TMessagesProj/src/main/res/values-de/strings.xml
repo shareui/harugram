@@ -1392,5 +1392,8 @@
     <string name="HaruLanguageGerman">Deutsch</string>
     <string name="HaruLanguageAuto">Automatisch</string>
     <string name="HaruChooseFile">Datei auswählen</string>
+    <string name="HaruLinks">Links</string>
+    <string name="HaruTelegramChannel">Telegram-Kanal</string>
+    <string name="HaruSourceCode">Quellcode</string>
 
 </resources>

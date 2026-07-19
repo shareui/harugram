@@ -11176,5 +11176,10 @@
     <string name="HaruLanguageGerman">German</string>
     <string name="HaruLanguageAuto">Auto</string>
     <string name="HaruChooseFile">Choose file</string>
+    <string name="HaruLinks">Links</string>
+    <string name="HaruTelegramChannel">Telegram channel</string>
+    <string name="HaruSourceCode">Source code</string>
+    <string name="HaruTelegramChannelUrl" translatable="false">https://telegram.me/haruclient</string>
+    <string name="HaruSourceCodeUrl" translatable="false">https://github.com/shareui/harugram</string>
 
 </resources>
