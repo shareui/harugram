@@ -68,6 +68,11 @@ impl Logger {
 		self.bar.step();
 	}
 
+	// grows the total step count, used once the number of files to process becomes known
+	pub fn extend_total(&mut self, extra_steps: u32) {
+		self.bar.extend_total(extra_steps);
+	}
+
 	// clears the bar line once the run is done
 	pub fn finish(&self) {
 		self.bar.finish();
@@ -123,6 +128,11 @@ impl ProgressBar {
 
 	fn step(&mut self) {
 		self.current = (self.current + 1).min(self.total);
+		self.render();
+	}
+
+	fn extend_total(&mut self, extra_steps: u32) {
+		self.total += extra_steps;
 		self.render();
 	}
 

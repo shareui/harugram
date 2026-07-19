@@ -2,9 +2,12 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use owo_colors::OwoColorize;
 use serde_json::Value;
 
+use crate::actions::compile;
 use crate::actions::lib_prompt;
+use crate::actions::package::{self, Password};
 use crate::progress::Logger;
 
 const HARU_YML: &str = "haru.yml";
@@ -12,7 +15,19 @@ const KOTLIN_MAIN_EXT: &str = "kt";
 const JAVA_MAIN_EXT: &str = "java";
 const CACHE_DIR: &str = "build/cache/";
 const BASE_STEPS: u32 = 7;
+const COMPILE_STEPS: u32 = 1;
 const SDK_STEPS: u32 = 2;
+const PACKAGE_STEPS: u32 = 1;
+// same color print_found (lib_prompt.rs) uses for a successfully resolved absolute path
+const BRIGHT_GREEN: (u8, u8, u8) = (0, 255, 0);
+
+// flags accepted by the build command
+pub struct BuildOptions {
+	pub verbose: bool,
+	pub release: bool,
+	pub compression: Option<u8>,
+	pub password: Option<Vec<String>>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -37,10 +52,12 @@ pub enum Error {
 	MetadataFieldMissing(&'static str),
 	MetadataFieldTypeMismatch { field: String, expected: &'static str, got: &'static str },
 	ApkNotFound(String),
+	SdkOnlyFlag(&'static str),
+	Compile(compile::Error),
+	Package(package::Error),
 	Io(std::io::Error),
 }
 
-// TODO: add the theme colour
 impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
@@ -65,25 +82,45 @@ impl std::fmt::Display for Error {
 				write!(f, "field \"{field}\" in metadata.yml expected type {expected}, got {got}")
 			}
 			Self::ApkNotFound(path) => write!(f, "stub not found: {path}"),
+			Self::SdkOnlyFlag(flag) => write!(f, "flag \"{flag}\" can only be used when target is \"sdk\""),
+			Self::Compile(err) => write!(f, "{err}"),
+			Self::Package(err) => write!(f, "{err}"),
 			Self::Io(err) => write!(f, "{err}"),
 		}
 	}
 }
 
-pub fn run(verbose: bool) -> Result<(), Error> {
+impl Error {
+	// extra gray hint line shown below the error, currently only set for missing compile tools
+	pub fn hint(&self) -> Option<String> {
+		match self {
+			Self::Compile(err) => err.hint(),
+			_ => None,
+		}
+	}
+}
+
+pub fn run(options: BuildOptions) -> Result<(), Error> {
 	let haru_yml = read_haru_yml()?;
 	let (target, target_line) = read_target(&haru_yml)?;
 
-	let total_steps = if target == Target::Sdk { BASE_STEPS + SDK_STEPS } else { BASE_STEPS };
-	let mut logger = Logger::new(verbose, total_steps);
+	if target != Target::Sdk && options.compression.is_some() {
+		return Err(Error::SdkOnlyFlag("-c/--compression"));
+	}
+	if target != Target::Sdk && options.password.is_some() {
+		return Err(Error::SdkOnlyFlag("-p/--password"));
+	}
+
+	let total_steps = if target == Target::Sdk { BASE_STEPS + SDK_STEPS + COMPILE_STEPS + PACKAGE_STEPS } else { BASE_STEPS + COMPILE_STEPS };
+	let mut logger = Logger::new(options.verbose, total_steps);
 	logger.log(&target_line);
 
-	let result = run_checks(&haru_yml, target, &mut logger);
+	let result = run_checks(&haru_yml, target, &options, &mut logger);
 	logger.finish();
 	result
 }
 
-fn run_checks(haru_yml: &Value, target: Target, logger: &mut Logger) -> Result<(), Error> {
+fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: &mut Logger) -> Result<(), Error> {
 	check_compilers(haru_yml, logger)?;
 	logger.step();
 	check_libs(haru_yml, logger)?;
@@ -95,18 +132,33 @@ fn run_checks(haru_yml: &Value, target: Target, logger: &mut Logger) -> Result<(
 	let metadata_path = check_metadata_exists(haru_yml, logger)?;
 	logger.step();
 
+	let mut sdk_id = String::new();
 	if target == Target::Sdk {
 		let metadata = read_metadata_yml(&metadata_path)?;
 		check_metadata_required_fields(&metadata, logger)?;
 		logger.step();
 		check_metadata_types(&metadata, logger)?;
 		logger.step();
+		sdk_id = metadata.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
 	}
 
 	check_stubs(haru_yml, logger)?;
 	logger.step();
 	ensure_cache_dir(logger)?;
 	logger.step();
+
+	compile::run(haru_yml, &source_path, options.release, logger).map_err(Error::Compile)?;
+
+	if target == Target::Sdk {
+		let password = options.password.as_ref().map(|pair| Password { algorithm: pair[0].clone(), value: pair[1].clone() });
+		let output_path = package::run(&metadata_path, options.compression, password.as_ref(), options.release).map_err(Error::Package)?;
+		let sdk_name = if options.release { "release.harusdk" } else { "debug.harusdk" };
+		logger.log(&format!("Packaged {sdk_name}"));
+		logger.step();
+		let (gr, gg, gb) = BRIGHT_GREEN;
+		logger.print_always(&format!("You have successfully assembled {sdk_id}, congratulations!").truecolor(gr, gg, gb).to_string());
+		logger.print_always(&format!("The result can be found in this path: {}", output_path.display()).truecolor(gr, gg, gb).to_string());
+	}
 
 	Ok(())
 }
@@ -366,9 +418,6 @@ fn check_metadata_types(metadata: &Value, logger: &mut Logger) -> Result<(), Err
 	}
 	Ok(())
 }
-
-// TODO
-
 
 fn check_socials_are_strings(value: &Value) -> Result<(), Error> {
 	let Some(entries) = value.as_array() else {

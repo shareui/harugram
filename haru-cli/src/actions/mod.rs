@@ -1,5 +1,8 @@
 pub mod build;
+pub mod compile;
 pub mod config;
 pub mod kotlin_stdlib;
 pub mod lib_prompt;
 pub mod new;
+pub mod package;
+pub mod toolchain;
