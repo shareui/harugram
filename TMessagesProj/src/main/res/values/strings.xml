@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Haru</string>
-    <string name="AppNameBeta">Haru Beta</string>
+    <string name="AppName">haruGram</string>
+    <string name="AppNameBeta">haruGram Beta</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>
@@ -11176,5 +11176,20 @@
     <string name="HaruLanguageGerman">German</string>
     <string name="HaruLanguageAuto">Auto</string>
     <string name="HaruChooseFile">Choose file</string>
+    <string name="HaruLinks">Links</string>
+    <string name="HaruTelegramChannel">Telegram channel</string>
+    <string name="HaruSourceCode">Source code</string>
+    <string name="HaruTelegramChannelValue" translatable="false">@haruclient</string>
+    <string name="HaruSourceCodeValue" translatable="false">github.com</string>
+    <string name="HaruTelegramChannelUrl" translatable="false">https://telegram.me/haruclient</string>
+    <string name="HaruSourceCodeUrl" translatable="false">https://github.com/shareui/harugram</string>
+    <string name="HaruShowId">Show ID</string>
+    <string name="HaruIdSeparator">ID separator</string>
+    <string name="HaruIdSeparatorHint">Separator between digit groups</string>
+    <string name="HaruIdSeparatorNone">None</string>
+    <string name="HaruIdPrefix" translatable="false">id: </string>
+    <string name="HaruIdMeta" translatable="false">(%1$d, DC%2$d)</string>
+    <string name="HaruIdMetaNoDc" translatable="false">(%1$d)</string>
+    <string name="HaruIdCopied">ID copied to clipboard</string>
 
 </resources>

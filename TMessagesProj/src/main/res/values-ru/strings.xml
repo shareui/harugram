@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Haru</string>
-    <string name="AppNameBeta">Haru Beta</string>
+    <string name="AppName">haruGram</string>
+    <string name="AppNameBeta">haruGram Beta</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>
@@ -280,5 +280,13 @@
     <string name="HaruLanguageGerman">Немецкий</string>
     <string name="HaruLanguageAuto">Авто</string>
     <string name="HaruChooseFile">Выбрать файл</string>
+    <string name="HaruLinks">Ссылки</string>
+    <string name="HaruTelegramChannel">Telegram канал</string>
+    <string name="HaruSourceCode">Исходный код</string>
+    <string name="HaruShowId">Показывать ID</string>
+    <string name="HaruIdSeparator">Разделитель ID</string>
+    <string name="HaruIdSeparatorHint">Символ между группами цифр</string>
+    <string name="HaruIdSeparatorNone">Нет</string>
+    <string name="HaruIdCopied">ID скопирован</string>
 
 </resources>

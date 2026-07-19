@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="AppName">Haru</string>
-    <string name="AppNameBeta">Haru Beta</string>
+    <string name="AppName">haruGram</string>
+    <string name="AppNameBeta">haruGram Beta</string>
     <string name="LanguageName">Deutsch</string>
     <string name="English">Englisch</string>
     <string name="LanguageNameInEnglish">German</string>
@@ -1392,5 +1392,13 @@
     <string name="HaruLanguageGerman">Deutsch</string>
     <string name="HaruLanguageAuto">Automatisch</string>
     <string name="HaruChooseFile">Datei auswählen</string>
+    <string name="HaruLinks">Links</string>
+    <string name="HaruTelegramChannel">Telegram-Kanal</string>
+    <string name="HaruSourceCode">Quellcode</string>
+    <string name="HaruShowId">ID anzeigen</string>
+    <string name="HaruIdSeparator">ID-Trennzeichen</string>
+    <string name="HaruIdSeparatorHint">Zeichen zwischen Zifferngruppen</string>
+    <string name="HaruIdSeparatorNone">Keins</string>
+    <string name="HaruIdCopied">ID in die Zwischenablage kopiert</string>
 
 </resources>

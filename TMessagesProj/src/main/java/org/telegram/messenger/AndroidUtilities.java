@@ -6711,7 +6711,8 @@ public class AndroidUtilities {
                     }
                     break;
             }
-            return formatString("TelegramVersion", R.string.TelegramVersion, String.format(Locale.US, "v%s (%d) %s", pInfo.versionName, code, abi));
+            // Brand is fixed in code so cloud/locale packs cannot restore "Telegram for Android".
+            return String.format(Locale.US, "%s v%s (%d) %s", de.shareui.haru.HaruLocale.BRAND_NAME, pInfo.versionName, code, abi);
         } catch (Exception e) {
             FileLog.e(e);
         }
