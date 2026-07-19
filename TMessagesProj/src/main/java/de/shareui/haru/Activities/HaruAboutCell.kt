@@ -18,6 +18,8 @@ import org.telegram.messenger.R
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Components.LayoutHelper
 
+// красавчик фауст хуйни навайбкодил
+
 /**
  * Full-width Haru branding header for Preferences.
  *
