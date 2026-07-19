@@ -9,10 +9,13 @@ use config::ConfigArgs;
 use new::NewArgs;
 
 #[derive(Debug, Parser)]
-#[command(name = "haru", about = "haru cli", long_about = None)]
+#[command(name = "haru", about = "haru cli", long_about = None, disable_version_flag = true)]
 pub struct Cli {
 	#[command(subcommand)]
-	pub command: Commands,
+	pub command: Option<Commands>,
+	
+	#[arg(short = 'v', long = "version")]
+	pub version: bool,
 }
 
 #[derive(Debug, Subcommand)]

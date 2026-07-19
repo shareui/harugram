@@ -3,7 +3,9 @@ mod commands;
 mod config;
 mod curator;
 mod parser;
+mod progress;
 mod tui;
+mod utils;
 
 use tui::theme::ThemeName;
 
@@ -11,6 +13,11 @@ fn main() {
 	init();
 
 	let cli = parser::parse();
+	if cli.version {
+		parser::print_version();
+		return;
+	}
+
 	curator::dispatch(cli.command);
 }
 

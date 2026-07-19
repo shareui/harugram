@@ -7,20 +7,14 @@ build: build/latest.dex
 
 kotlinc: ">=2.4.0"
 # javac:
-# both are supported, the choice depends on the file format
 
 include:
   - "*.kt"
   # - "*.java"
 
-# put the haru apk file in this path
-client: stubd/haru.apk
-# d8 will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*
-# don't forget to add it to .gitignore :3
-# you can put a .jar plug here, I don't mind
-
-# это автоген ес чо ^^ ^^^^
-
-
-libs:
+static-libs:
   - ./libs/kotlin-stdlib.jar
+
+stubs:
+  - ./stubs/haru.apk
+  - ./stubs/android.jar
