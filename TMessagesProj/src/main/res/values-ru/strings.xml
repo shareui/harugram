@@ -284,6 +284,9 @@
     <string name="HaruTelegramChannel">Telegram канал</string>
     <string name="HaruSourceCode">Исходный код</string>
     <string name="HaruShowId">Показывать ID</string>
+    <string name="HaruIdSeparator">Разделитель ID</string>
+    <string name="HaruIdSeparatorHint">Символ между группами цифр</string>
+    <string name="HaruIdSeparatorNone">Нет</string>
     <string name="HaruIdCopied">ID скопирован</string>
 
 </resources>

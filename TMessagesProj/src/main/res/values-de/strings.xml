@@ -1396,6 +1396,9 @@
     <string name="HaruTelegramChannel">Telegram-Kanal</string>
     <string name="HaruSourceCode">Quellcode</string>
     <string name="HaruShowId">ID anzeigen</string>
+    <string name="HaruIdSeparator">ID-Trennzeichen</string>
+    <string name="HaruIdSeparatorHint">Zeichen zwischen Zifferngruppen</string>
+    <string name="HaruIdSeparatorNone">Keins</string>
     <string name="HaruIdCopied">ID in die Zwischenablage kopiert</string>
 
 </resources>

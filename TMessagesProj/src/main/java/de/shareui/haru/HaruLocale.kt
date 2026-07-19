@@ -16,6 +16,8 @@ object HaruLocale {
     const val KEY_LANGUAGE = "haru_language"
     const val KEY_VERBOSE_LOGGING = "haru_verbose_logging"
     const val KEY_SHOW_ID = "haru_show_id"
+    const val KEY_ID_SEPARATOR = "haru_id_separator"
+    const val DEFAULT_ID_SEPARATOR = "."
     const val LANG_AUTO = "auto"
     const val LANG_EN = "en"
     const val LANG_RU = "ru"
@@ -50,10 +52,37 @@ object HaruLocale {
         prefs().edit().putBoolean(KEY_SHOW_ID, enabled).apply()
     }
 
-    /** Dotted grouping: 400216230 → 400.216.230 */
+    /**
+     * Separator used when grouping peer IDs (default `.`).
+     * Empty string means no grouping (raw digits).
+     */
     @JvmStatic
-    fun formatIdDotted(id: Long): String =
-        LocaleController.formatNumber(id, '.')
+    fun getIdSeparator(): String {
+        val p = prefs()
+        if (!p.contains(KEY_ID_SEPARATOR)) {
+            return DEFAULT_ID_SEPARATOR
+        }
+        return p.getString(KEY_ID_SEPARATOR, "") ?: ""
+    }
+
+    @JvmStatic
+    fun setIdSeparator(separator: String) {
+        prefs().edit().putString(KEY_ID_SEPARATOR, separator).apply()
+    }
+
+    /** Groups digits with [getIdSeparator]; empty separator → plain id. */
+    @JvmStatic
+    fun formatIdDotted(id: Long): String {
+        val sep = getIdSeparator()
+        if (sep.isEmpty()) {
+            return id.toString()
+        }
+        if (sep.length == 1) {
+            return LocaleController.formatNumber(id, sep[0])
+        }
+        // Multi-char separators: group with a placeholder then replace.
+        return LocaleController.formatNumber(id, '\u0001').replace("\u0001", sep)
+    }
 
     @JvmStatic
     fun idDigitCount(id: Long): Int =

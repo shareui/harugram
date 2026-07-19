@@ -11182,6 +11182,9 @@
     <string name="HaruTelegramChannelUrl" translatable="false">https://telegram.me/haruclient</string>
     <string name="HaruSourceCodeUrl" translatable="false">https://github.com/shareui/harugram</string>
     <string name="HaruShowId">Show ID</string>
+    <string name="HaruIdSeparator">ID separator</string>
+    <string name="HaruIdSeparatorHint">Separator between digit groups</string>
+    <string name="HaruIdSeparatorNone">None</string>
     <string name="HaruIdPrefix" translatable="false">id: </string>
     <string name="HaruIdMeta" translatable="false">(%1$d, DC%2$d)</string>
     <string name="HaruIdMetaNoDc" translatable="false">(%1$d)</string>
