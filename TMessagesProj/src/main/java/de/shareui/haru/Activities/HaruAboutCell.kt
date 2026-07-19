@@ -39,6 +39,8 @@ class HaruAboutCell(context: Context) : LinearLayout(context) {
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
+        clipToPadding = false
+        clipChildren = false
         setBackgroundColor(0)
         tag = org.telegram.ui.Components.RecyclerListView.TAG_NOT_SECTION
         setPadding(0, AndroidUtilities.dp(28f), 0, AndroidUtilities.dp(24f))
@@ -48,7 +50,7 @@ class HaruAboutCell(context: Context) : LinearLayout(context) {
         iconView = ImageView(context).apply {
             // Zoom past adaptive-icon safe padding so art fills the rounded square.
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setImageResource(R.drawable.haru)
+            setImageResource(R.drawable.haru_app_icon)
             scaleX = 1.22f
             scaleY = 1.22f
             elevation = 0f

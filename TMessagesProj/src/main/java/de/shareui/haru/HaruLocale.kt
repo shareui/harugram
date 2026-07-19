@@ -111,10 +111,11 @@ object HaruLocale {
         return photo.dc_id
     }
 
+    // фауст иди нахуй
     /** Primary line: `id: 400.216.230` */
     @JvmStatic
     fun buildIdPrimary(context: Context, id: Long): String =
-        getString(context, R.string.HaruIdPrefix) + formatIdDotted(id)
+        getString(context, R.string.HaruIdPrefix) + " " + formatIdDotted(id)
 
     /**
      * Secondary (gray) line: `(9, DC2)` or `(9)` when [dcId] is 0.
@@ -141,8 +142,8 @@ object HaruLocale {
     fun detectFromTelegram(): String {
         val info = LocaleController.getInstance().currentLocaleInfo
         val code = (info?.pluralLangCode ?: info?.shortName
-            ?: LocaleController.getInstance().currentLocale?.language
-            ?: "").lowercase(Locale.US)
+        ?: LocaleController.getInstance().currentLocale?.language
+        ?: "").lowercase(Locale.US)
         val base = code.substringBefore('-').substringBefore('_')
         return if (base in supported) base else LANG_EN
     }
