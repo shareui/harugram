@@ -2,11 +2,32 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use owo_colors::OwoColorize;
 use serde_json::Value;
+
+use crate::actions::compile;
+use crate::actions::lib_prompt;
+use crate::actions::package::{self, Password};
+use crate::progress::Logger;
 
 const HARU_YML: &str = "haru.yml";
 const KOTLIN_MAIN_EXT: &str = "kt";
 const JAVA_MAIN_EXT: &str = "java";
+const CACHE_DIR: &str = "build/cache/";
+const BASE_STEPS: u32 = 7;
+const COMPILE_STEPS: u32 = 1;
+const SDK_STEPS: u32 = 2;
+const PACKAGE_STEPS: u32 = 1;
+// same color print_found (lib_prompt.rs) uses for a successfully resolved absolute path
+const BRIGHT_GREEN: (u8, u8, u8) = (0, 255, 0);
+
+// flags accepted by the build command
+pub struct BuildOptions {
+	pub verbose: bool,
+	pub release: bool,
+	pub compression: Option<u8>,
+	pub password: Option<Vec<String>>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -30,11 +51,13 @@ pub enum Error {
 	MetadataYmlInvalid(String),
 	MetadataFieldMissing(&'static str),
 	MetadataFieldTypeMismatch { field: String, expected: &'static str, got: &'static str },
+	ApkNotFound(String),
+	SdkOnlyFlag(&'static str),
+	Compile(compile::Error),
+	Package(package::Error),
 	Io(std::io::Error),
 }
 
-// TODO: add the theme colour
-// TODO: add a progressbar
 impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
@@ -58,34 +81,86 @@ impl std::fmt::Display for Error {
 			Self::MetadataFieldTypeMismatch { field, expected, got } => {
 				write!(f, "field \"{field}\" in metadata.yml expected type {expected}, got {got}")
 			}
+			Self::ApkNotFound(path) => write!(f, "stub not found: {path}"),
+			Self::SdkOnlyFlag(flag) => write!(f, "flag \"{flag}\" can only be used when target is \"sdk\""),
+			Self::Compile(err) => write!(f, "{err}"),
+			Self::Package(err) => write!(f, "{err}"),
 			Self::Io(err) => write!(f, "{err}"),
 		}
 	}
 }
 
-pub fn run(verbose: bool) -> Result<(), Error> {
+impl Error {
+	// extra gray hint line shown below the error, currently only set for missing compile tools
+	pub fn hint(&self) -> Option<String> {
+		match self {
+			Self::Compile(err) => err.hint(),
+			_ => None,
+		}
+	}
+}
+
+pub fn run(options: BuildOptions) -> Result<(), Error> {
 	let haru_yml = read_haru_yml()?;
-	let target = read_target(&haru_yml, verbose)?;
+	let (target, target_line) = read_target(&haru_yml)?;
 
-	check_compilers(&haru_yml, verbose)?;
-	check_libs(&haru_yml, verbose)?;
-	let source_path = check_source(&haru_yml, verbose)?;
-	check_class_matches_package(&haru_yml, &source_path, verbose)?;
-	let metadata_path = check_metadata_exists(&haru_yml, verbose)?;
+	if target != Target::Sdk && options.compression.is_some() {
+		return Err(Error::SdkOnlyFlag("-c/--compression"));
+	}
+	if target != Target::Sdk && options.password.is_some() {
+		return Err(Error::SdkOnlyFlag("-p/--password"));
+	}
 
+	let total_steps = if target == Target::Sdk { BASE_STEPS + SDK_STEPS + COMPILE_STEPS + PACKAGE_STEPS } else { BASE_STEPS + COMPILE_STEPS };
+	let mut logger = Logger::new(options.verbose, total_steps);
+	logger.log(&target_line);
+
+	let result = run_checks(&haru_yml, target, &options, &mut logger);
+	logger.finish();
+	result
+}
+
+fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: &mut Logger) -> Result<(), Error> {
+	check_compilers(haru_yml, logger)?;
+	logger.step();
+	check_libs(haru_yml, logger)?;
+	logger.step();
+	let source_path = check_source(haru_yml, logger)?;
+	logger.step();
+	check_class_matches_package(haru_yml, &source_path, logger)?;
+	logger.step();
+	let metadata_path = check_metadata_exists(haru_yml, logger)?;
+	logger.step();
+
+	let mut sdk_id = String::new();
 	if target == Target::Sdk {
 		let metadata = read_metadata_yml(&metadata_path)?;
-		check_metadata_required_fields(&metadata, verbose)?;
-		check_metadata_types(&metadata, verbose)?;
+		check_metadata_required_fields(&metadata, logger)?;
+		logger.step();
+		check_metadata_types(&metadata, logger)?;
+		logger.step();
+		sdk_id = metadata.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+	}
+
+	check_stubs(haru_yml, logger)?;
+	logger.step();
+	ensure_cache_dir(logger)?;
+	logger.step();
+
+	compile::run(haru_yml, &source_path, options.release, logger).map_err(Error::Compile)?;
+
+	if target == Target::Sdk {
+		let password = options.password.as_ref().map(|pair| Password { algorithm: pair[0].clone(), value: pair[1].clone() });
+		let output_path = package::run(&metadata_path, options.compression, password.as_ref(), options.release).map_err(Error::Package)?;
+		let sdk_name = if options.release { "release.harusdk" } else { "debug.harusdk" };
+		logger.log(&format!("Packaged {sdk_name}"));
+		logger.step();
+		let (gr, gg, gb) = BRIGHT_GREEN;
+		logger.print_always(&format!("You have successfully assembled {sdk_id}, congratulations!").truecolor(gr, gg, gb).to_string());
+		logger.print_always(&format!("The result can be found in this path: {}", output_path.display()).truecolor(gr, gg, gb).to_string());
 	}
 
 	Ok(())
-}
-
-fn log(verbose: bool, message: &str) {
-	if verbose {
-		println!("{message}");
-	}
 }
 
 fn read_haru_yml() -> Result<Value, Error> {
@@ -96,29 +171,28 @@ fn read_haru_yml() -> Result<Value, Error> {
 	serde_saphyr::from_str::<Value>(&contents).map_err(|err| Error::HaruYmlInvalid(err.to_string()))
 }
 
-fn read_target(haru_yml: &Value, verbose: bool) -> Result<Target, Error> {
+fn read_target(haru_yml: &Value) -> Result<(Target, String), Error> {
 	let raw = haru_yml.get("target").and_then(Value::as_str).ok_or_else(|| Error::HaruYmlInvalid("missing field \"target\"".to_string()))?;
 	let target = match raw {
 		"sdk" => Target::Sdk,
 		"extension" => Target::Extension,
 		other => return Err(Error::UnknownTarget(other.to_string())),
 	};
-	log(verbose, &format!("Target found: {raw}"));
-	Ok(target)
+	Ok((target, format!("Target found: {raw}")))
 }
 
 // step 1: kotlinc/javac presence and version constraint, whichever of the two is configured
-fn check_compilers(haru_yml: &Value, verbose: bool) -> Result<(), Error> {
+fn check_compilers(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
 	if let Some(constraint) = haru_yml.get("kotlinc").and_then(Value::as_str) {
-		check_compiler_version("kotlinc", constraint, verbose)?;
+		check_compiler_version("kotlinc", constraint, logger)?;
 	}
 	if let Some(constraint) = haru_yml.get("javac").and_then(Value::as_str) {
-		check_compiler_version("javac", constraint, verbose)?;
+		check_compiler_version("javac", constraint, logger)?;
 	}
 	Ok(())
 }
 
-fn check_compiler_version(compiler: &'static str, constraint: &str, verbose: bool) -> Result<(), Error> {
+fn check_compiler_version(compiler: &'static str, constraint: &str, logger: &mut Logger) -> Result<(), Error> {
 	let (operator, required) = parse_constraint(compiler, constraint)?;
 
 	let path = which(compiler).map_err(Error::Io)?;
@@ -141,7 +215,7 @@ fn check_compiler_version(compiler: &'static str, constraint: &str, verbose: boo
 	if !satisfies {
 		return Err(Error::CompilerVersionMismatch { compiler, constraint: constraint.to_string(), found });
 	}
-	log(verbose, &format!("Compiler {compiler} found, version {found}"));
+	logger.log(&format!("Compiler {compiler} found, version {found}"));
 	Ok(())
 }
 
@@ -221,9 +295,9 @@ fn extract_version(text: &str) -> Option<String> {
 	None
 }
 
-// step 2: every path under libs must exist
-fn check_libs(haru_yml: &Value, verbose: bool) -> Result<(), Error> {
-	let Some(libs) = haru_yml.get("libs").and_then(Value::as_array) else {
+// step 2: every path under libs must exist, offers an interactive system search if missing
+fn check_libs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
+	let Some(libs) = haru_yml.get("static-libs").and_then(Value::as_array) else {
 		return Ok(());
 	};
 	for lib in libs {
@@ -231,25 +305,28 @@ fn check_libs(haru_yml: &Value, verbose: bool) -> Result<(), Error> {
 			continue;
 		};
 		if !Path::new(path).exists() {
-			return Err(Error::LibNotFound(path.to_string()));
+			match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Library, path) {
+				lib_prompt::Resolution::Resolved => {}
+				lib_prompt::Resolution::Aborted => return Err(Error::LibNotFound(path.to_string())),
+			}
 		}
-		log(verbose, &format!("Library {path} found"));
+		logger.log(&format!("Library {path} found"));
 	}
 	Ok(())
 }
 
 // step 3: source directory must exist
-fn check_source(haru_yml: &Value, verbose: bool) -> Result<String, Error> {
+fn check_source(haru_yml: &Value, logger: &mut Logger) -> Result<String, Error> {
 	let source = haru_yml.get("source").and_then(Value::as_str).unwrap_or("src").to_string(); // TODO
 	if !Path::new(&source).exists() {
 		return Err(Error::SourceNotFound(source));
 	}
-	log(verbose, "Source directory found");
+	logger.log("Source directory found");
 	Ok(source)
 }
 
 // step 4: find the main file
-fn check_class_matches_package(haru_yml: &Value, source_path: &str, verbose: bool) -> Result<(), Error> {
+fn check_class_matches_package(haru_yml: &Value, source_path: &str, logger: &mut Logger) -> Result<(), Error> {
 	let Some(class) = haru_yml.get("class").and_then(Value::as_str) else {
 		return Err(Error::HaruYmlInvalid("missing field \"class\"".to_string()));
 	};
@@ -272,7 +349,7 @@ fn check_class_matches_package(haru_yml: &Value, source_path: &str, verbose: boo
 				found: found_package,
 			});
 		}
-		log(verbose, &format!("{class} class was successfully found"));
+		logger.log(&format!("{class} class was successfully found"));
 		return Ok(());
 	}
 
@@ -293,12 +370,12 @@ fn read_pkg_dec (path: &Path) -> std::io::Result<Option<String>> {
 }
 
 // step 5: metadata.yml
-fn check_metadata_exists(haru_yml: &Value, verbose: bool) -> Result<String, Error> {
+fn check_metadata_exists(haru_yml: &Value, logger: &mut Logger) -> Result<String, Error> {
 	let path = haru_yml.get("metadata").and_then(Value::as_str).unwrap_or("metadata.yml").to_string();
 	if !Path::new(&path).exists() {
 		return Err(Error::MetadataYmlNotFound(path));
 	}
-	log(verbose, "Metadata found");
+	logger.log("Metadata found");
 	Ok(path)
 }
 
@@ -308,12 +385,12 @@ fn read_metadata_yml(path: &str) -> Result<Value, Error> {
 }
 
 // step 6 (sdk only): id, version, author
-fn check_metadata_required_fields(metadata: &Value, verbose: bool) -> Result<(), Error> {
+fn check_metadata_required_fields(metadata: &Value, logger: &mut Logger) -> Result<(), Error> {
 	for field in ["id", "version", "author"] {
 		if metadata.get(field).is_none() {
 			return Err(Error::MetadataFieldMissing(field));
 		}
-		log(verbose, &format!("{field} found"));
+		logger.log(&format!("{field} found"));
 	}
 	Ok(())
 }
@@ -321,7 +398,7 @@ fn check_metadata_required_fields(metadata: &Value, verbose: bool) -> Result<(),
 const KNOWN_METADATA_STRING_FIELDS: [&str; 6] = ["id", "version", "state", "author", "app_version", "source"];
 
 // step 7 (sdk only): types ==
-fn check_metadata_types(metadata: &Value, verbose: bool) -> Result<(), Error> {
+fn check_metadata_types(metadata: &Value, logger: &mut Logger) -> Result<(), Error> {
 	let Value::Object(map) = metadata else {
 		return Err(Error::MetadataYmlInvalid("root must be a mapping".to_string()));
 	};
@@ -329,21 +406,18 @@ fn check_metadata_types(metadata: &Value, verbose: bool) -> Result<(), Error> {
 	for (field, value) in map {
 		if field == "socials" {
 			check_socials_are_strings(value)?;
-			log(verbose, &format!("{field} matches the type"));
+			logger.log(&format!("{field} matches the type"));
 			continue;
 		}
 		if KNOWN_METADATA_STRING_FIELDS.contains(&field.as_str()) {
 			check_is_string(field, value)?;
-			log(verbose, &format!("{field} matches the type"));
+			logger.log(&format!("{field} matches the type"));
 			continue;
 		}
-		log(verbose, &format!("Unknown field, skipping: {field}"));
+		logger.log(&format!("Unknown field, skipping: {field}"));
 	}
 	Ok(())
 }
-
-// TODO
-
 
 fn check_socials_are_strings(value: &Value) -> Result<(), Error> {
 	let Some(entries) = value.as_array() else {
@@ -372,4 +446,36 @@ fn json_type_name(value: &Value) -> &'static str {
 		Value::Array(_) => "array",
 		Value::Object(_) => "object",
 	}
+}
+
+// step 8: every path under stubs must exist, offers an interactive system search if missing
+fn check_stubs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
+	let Some(stubs) = haru_yml.get("stubs").and_then(Value::as_array) else {
+		return Ok(());
+	};
+	for stub in stubs {
+		let Some(path) = stub.as_str() else {
+			continue;
+		};
+		if !Path::new(path).exists() {
+			match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Stub, path) {
+				lib_prompt::Resolution::Resolved => {}
+				lib_prompt::Resolution::Aborted => return Err(Error::ApkNotFound(path.to_string())),
+			}
+		}
+		logger.log(&format!("Stub found: {path}"));
+	}
+	Ok(())
+}
+
+// step 9: build/cache/ must exist, created if missing
+fn ensure_cache_dir(logger: &mut Logger) -> Result<(), Error> {
+	let cache_dir = Path::new(CACHE_DIR);
+	if cache_dir.exists() {
+		logger.log("Cache directory found");
+		return Ok(());
+	}
+	fs::create_dir_all(cache_dir).map_err(Error::Io)?;
+	logger.log("Cache directory created");
+	Ok(())
 }

@@ -317,7 +317,6 @@ fn handle_not_found(tx: &Sender<Event>, confirm_rx: &Receiver<bool>) -> Result<O
 	Err(Error::Terminated)
 }
 
-// copies the found jar into ./libs/kotlin-stdlib.jar, the path written into haru.yml
 fn install_kotlin_stdlib(found: &Path, tx: &Sender<Event>) -> Result<Option<String>, Error> {
 	fs::create_dir_all("libs").map_err(Error::Io)?;
 	let dest = Path::new("libs").join("kotlin-stdlib.jar");
@@ -351,14 +350,14 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 	};
 
 	let libs_block = match kotlin_stdlib_path {
-		Some(path) => format!("libs:\n  - {path}"),
-		None => "# libs:\n#   - path/to/jar/kotlin-stdlib.jar".to_string(),
+		Some(path) => format!("# build will link classes from here into the .dex\nstatic-libs:\n  - {path}"),
+		None => "# build will link classes from here into the .dex\n# static-libs:\n#   - path/to/jar/kotlin-stdlib.jar".to_string(),
 	};
 
-	let client_block = "# put the haru apk file in this path\nclient: ./path/to/haru.apk\n# d8 will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\n# don't forget to add it to .gitignore :3\n# you can put a .jar plug here, I don't mind";
+	let stubs_block = "# build will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\nstubs:\n  - ./stubs/haru.apk # put the haru apk file in this path\n# don't forget to add it to .gitignore :3\n# you can put a .jar plug here, I don't mind";
 
 	let contents = format!(
-		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\nbuild: build/latest.dex\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{client_block}\n\n{libs_block}",
+		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}\n\n{stubs_block}",
 		request.sdk_id,
 	);
 

@@ -41,8 +41,6 @@ pub fn path() -> Option<PathBuf> {
 	dir().map(|dir| dir.join(CONFIG_FILE_NAME))
 }
 
-// creates the config directory and a default config.json if they do not exist yet,
-// leaves an existing config file untouched
 pub fn ensure() -> io::Result<()> {
 	let Some(dir) = dir() else {
 		return Err(io::Error::other("could not resolve platform config directory"));
