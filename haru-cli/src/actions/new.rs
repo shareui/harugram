@@ -354,10 +354,13 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 		None => "# build will link classes from here into the .dex\n# static-libs:\n#   - path/to/jar/kotlin-stdlib.jar".to_string(),
 	};
 
-	let stubs_block = "# build will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\nstubs:\n  - ./stubs/haru.apk # put the haru apk file in this path\n# don't forget to add it to .gitignore :3\n# you can put a .jar plug here, I don't mind";
+	let maven_block =
+		"# this field can download libraries from Maven Central; so, it's recommended for androidx, etc\n# maven:\n#    - \n# format: com.example.lib:lib:1.2.3-jre";
+
+	let stubs_block = "# build will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\n# a stub entry can be a .jar, or a folder of .kt/.java sources\nstubs:\n  - ../TMessagesProj/src/main/java/\n# don't forget to add it to .gitignore :3";
 
 	let contents = format!(
-		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}\n\n{stubs_block}",
+		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}\n\n{maven_block}\n\n{stubs_block}",
 		request.sdk_id,
 	);
 

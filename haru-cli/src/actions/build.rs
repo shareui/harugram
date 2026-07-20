@@ -23,7 +23,7 @@ const BRIGHT_GREEN: (u8, u8, u8) = (0, 255, 0);
 
 // flags accepted by the build command
 pub struct BuildOptions {
-	pub verbose: bool,
+	pub verbose_level: u8,
 	pub release: bool,
 	pub compression: Option<u8>,
 	pub password: Option<Vec<String>>,
@@ -112,7 +112,7 @@ pub fn run(options: BuildOptions) -> Result<(), Error> {
 	}
 
 	let total_steps = if target == Target::Sdk { BASE_STEPS + SDK_STEPS + COMPILE_STEPS + PACKAGE_STEPS } else { BASE_STEPS + COMPILE_STEPS };
-	let mut logger = Logger::new(options.verbose, total_steps);
+	let mut logger = Logger::new(options.verbose_level, total_steps);
 	logger.log(&target_line);
 
 	let result = run_checks(&haru_yml, target, &options, &mut logger);
@@ -295,7 +295,7 @@ fn extract_version(text: &str) -> Option<String> {
 	None
 }
 
-// step 2: every path under libs must exist, offers an interactive system search if missing
+// step 2: every path under libs must exist (file or folder), offers an interactive system search if a file is missing
 fn check_libs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
 	let Some(libs) = haru_yml.get("static-libs").and_then(Value::as_array) else {
 		return Ok(());
@@ -304,7 +304,12 @@ fn check_libs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
 		let Some(path) = lib.as_str() else {
 			continue;
 		};
-		if !Path::new(path).exists() {
+		let entry = Path::new(path);
+		if entry.is_dir() {
+			logger.log(&format!("Library folder {path} found"));
+			continue;
+		}
+		if !entry.exists() {
 			match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Library, path) {
 				lib_prompt::Resolution::Resolved => {}
 				lib_prompt::Resolution::Aborted => return Err(Error::LibNotFound(path.to_string())),
@@ -457,7 +462,12 @@ fn check_stubs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
 		let Some(path) = stub.as_str() else {
 			continue;
 		};
-		if !Path::new(path).exists() {
+		let entry = Path::new(path);
+		if entry.is_dir() {
+			logger.log(&format!("Stub folder found: {path}"));
+			continue;
+		}
+		if !entry.exists() {
 			match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Stub, path) {
 				lib_prompt::Resolution::Resolved => {}
 				lib_prompt::Resolution::Aborted => return Err(Error::ApkNotFound(path.to_string())),

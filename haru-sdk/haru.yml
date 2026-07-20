@@ -15,6 +15,9 @@ include:
 static-libs:
   - ./libs/kotlin-stdlib.jar
 
+# maven:
+#   -
+
 stubs:
-  - ./stubs/haru.apk
+  - ../TMessagesProj/src/main/java/
   - ./stubs/android.jar

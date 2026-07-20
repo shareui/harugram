@@ -15,7 +15,7 @@ const AWAITING_SWEEP_MS: u128 = 1400;
 const AWAITING_TICK: Duration = Duration::from_millis(50);
 
 pub struct Logger {
-	verbose: bool,
+	level: u8,
 	bar: ProgressBar,
 	log_color_a: (u8, u8, u8),
 	log_color_b: (u8, u8, u8),
@@ -23,10 +23,10 @@ pub struct Logger {
 }
 
 impl Logger {
-	pub fn new(verbose: bool, total_steps: u32) -> Self {
+	pub fn new(level: u8, total_steps: u32) -> Self {
 		let theme = Theme::get(ThemeName::default());
 		let logger = Self {
-			verbose,
+			level,
 			bar: ProgressBar::new(total_steps),
 			log_color_a: to_rgb(theme.log),
 			log_color_b: to_rgb(theme.accent_alt),
@@ -37,11 +37,20 @@ impl Logger {
 	}
 
 	pub fn log(&mut self, message: &str) {
-		if !self.verbose {
+		if self.level < 1 {
 			return;
 		}
 		let (r, g, b) = self.next_gradient_color();
 		self.bar.log_line(&message.truecolor(r, g, b).to_string());
+	}
+
+	// -v 2
+	pub fn debug(&mut self, message: &str) {
+		if self.level < 2 {
+			return;
+		}
+		let (r, g, b) = self.next_gradient_color();
+		self.bar.log_line(&format!("[debug] {message}").truecolor(r, g, b).to_string());
 	}
 
 	pub fn next_gradient_color(&mut self) -> (u8, u8, u8) {

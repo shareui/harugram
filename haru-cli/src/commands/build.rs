@@ -5,9 +5,9 @@ use crate::actions::build;
 
 #[derive(Debug, Args)]
 pub struct BuildArgs {
-	// logs
-	#[arg(short = 'v', long = "verbose")]
-	pub verbose: bool,
+	// -v = level 1 (as before), -v 2 = verbose debug log from haru's internals
+	#[arg(short = 'v', long = "verbose", value_name = "LEVEL", num_args = 0..=1, default_missing_value = "1")]
+	pub verbose: Option<u8>,
 
 	// uses --release when merging the dexes with d8
 	#[arg(short = 'r', long = "release")]
@@ -23,7 +23,8 @@ pub struct BuildArgs {
 }
 
 pub fn run(args: BuildArgs) {
-	let options = build::BuildOptions { verbose: args.verbose, release: args.release, compression: args.compression, password: args.password };
+	let level = args.verbose.unwrap_or(0);
+	let options = build::BuildOptions { verbose_level: level, release: args.release, compression: args.compression, password: args.password };
 
 	if let Err(err) = build::run(options) {
 		let hint = err.hint();
