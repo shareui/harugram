@@ -94,14 +94,14 @@ fn fqcn_to_relative_path(fqcn: &str, lang: Lang) -> PathBuf {
 	path
 }
 
-pub fn run(haru_yml: &Value, source_path: &str, release: bool, logger: &mut Logger) -> Result<(), Error> {
+pub fn run(haru_yml: &Value, source_path: &str, release: bool, maven_libs: &[String], logger: &mut Logger) -> Result<(), Error> {
 	let sources = collect_sources(haru_yml, source_path)?;
 	logger.extend_total(sources.len() as u32);
 
-	let class_files = compile_sources(haru_yml, &sources, source_path, logger)?;
+	let class_files = compile_sources(haru_yml, &sources, source_path, maven_libs, logger)?;
 	logger.extend_total(class_files.len() as u32);
 
-	let static_libs = resolve_static_libs_for_dex(haru_yml, logger)?;
+	let static_libs = resolve_static_libs_for_dex(haru_yml, maven_libs, logger)?;
 	let dex_files = dex_classes(&class_files, &static_libs, logger)?;
 
 	merge_dex(&dex_files, &static_libs, release, logger)?;
@@ -154,8 +154,8 @@ fn walk_dir(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 	Ok(files)
 }
 
-fn compile_sources(haru_yml: &Value, sources: &[SourceFile], source_path: &str, logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
-	let classpath = build_classpath(haru_yml, logger)?;
+fn compile_sources(haru_yml: &Value, sources: &[SourceFile], source_path: &str, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+	let classpath = build_classpath(haru_yml, maven_libs, logger)?;
 	let stub_sources = stub_sources_needed(haru_yml, source_path, &classpath, logger)?;
 
 	let all_sources: Vec<&SourceFile> = sources.iter().chain(stub_sources.iter()).collect();
@@ -206,7 +206,7 @@ fn stub_sources_needed(haru_yml: &Value, source_path: &str, classpath: &[String]
 	Ok(resolved)
 }
 
-fn build_classpath(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn build_classpath(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml).into_iter().chain(read_stubs(haru_yml)) {
 		let entry_path = Path::new(&path);
@@ -215,11 +215,12 @@ fn build_classpath(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>,
 			continue;
 		}
 		let Some(resolved) = resolve_lib_entry(&path, logger)? else {
-			logger.log(&format!("Skipping {path} on the compiler classpath: not a .jar/.aar (kotlinc/javac can't read .apk/.dex bytecode)"));
+			logger.log(&format!("Skipping {path} on the compiler classpath"));
 			continue;
 		};
 		entries.push(resolved);
 	}
+	entries.extend(maven_libs.iter().cloned());
 	logger.debug(&format!("classpath: {}", entries.join(", ")));
 	Ok(entries)
 }
@@ -256,14 +257,15 @@ fn extract_aar_classes(aar_path: &Path) -> Result<PathBuf, Error> {
 	Ok(out_jar)
 }
 
-fn resolve_static_libs_for_dex(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn resolve_static_libs_for_dex(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml) {
 		match resolve_lib_entry(&path, logger)? {
 			Some(resolved) => entries.push(resolved),
-			None => logger.log(&format!("Skipping {path} as a d8 --lib: not a .jar/.aar")),
+			None => logger.log(&format!("Skipping {path} as a d8 --lib")),
 		}
 	}
+	entries.extend(maven_libs.iter().cloned());
 	Ok(entries)
 }
 

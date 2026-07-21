@@ -3,6 +3,7 @@ pub mod compile;
 pub mod config;
 pub mod kotlin_stdlib;
 pub mod lib_prompt;
+pub mod maven;
 pub mod new;
 pub mod package;
 pub mod stubs_parser;

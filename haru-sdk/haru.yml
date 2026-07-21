@@ -15,9 +15,6 @@ include:
 static-libs:
   - ./libs/kotlin-stdlib.jar
 
-# maven:
-#   -
-
 stubs:
-  - ../TMessagesProj/src/main/java/
+  - ../TMessagesProj/src/main/java/ # :../TMessagesProj/build.gradle
   - ./stubs/android.jar

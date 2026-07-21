@@ -7,6 +7,7 @@ use serde_json::Value;
 
 use crate::actions::compile;
 use crate::actions::lib_prompt;
+use crate::actions::maven;
 use crate::actions::package::{self, Password};
 use crate::progress::Logger;
 
@@ -15,6 +16,7 @@ const KOTLIN_MAIN_EXT: &str = "kt";
 const JAVA_MAIN_EXT: &str = "java";
 const CACHE_DIR: &str = "build/cache/";
 const BASE_STEPS: u32 = 7;
+const MAVEN_STEPS: u32 = 1;
 const COMPILE_STEPS: u32 = 1;
 const SDK_STEPS: u32 = 2;
 const PACKAGE_STEPS: u32 = 1;
@@ -54,6 +56,7 @@ pub enum Error {
 	ApkNotFound(String),
 	SdkOnlyFlag(&'static str),
 	Compile(compile::Error),
+	Maven(maven::Error),
 	Package(package::Error),
 	Io(std::io::Error),
 }
@@ -84,6 +87,7 @@ impl std::fmt::Display for Error {
 			Self::ApkNotFound(path) => write!(f, "stub not found: {path}"),
 			Self::SdkOnlyFlag(flag) => write!(f, "flag \"{flag}\" can only be used when target is \"sdk\""),
 			Self::Compile(err) => write!(f, "{err}"),
+			Self::Maven(err) => write!(f, "{err}"),
 			Self::Package(err) => write!(f, "{err}"),
 			Self::Io(err) => write!(f, "{err}"),
 		}
@@ -111,7 +115,11 @@ pub fn run(options: BuildOptions) -> Result<(), Error> {
 		return Err(Error::SdkOnlyFlag("-p/--password"));
 	}
 
-	let total_steps = if target == Target::Sdk { BASE_STEPS + SDK_STEPS + COMPILE_STEPS + PACKAGE_STEPS } else { BASE_STEPS + COMPILE_STEPS };
+	let total_steps = if target == Target::Sdk {
+		BASE_STEPS + SDK_STEPS + MAVEN_STEPS + COMPILE_STEPS + PACKAGE_STEPS
+	} else {
+		BASE_STEPS + MAVEN_STEPS + COMPILE_STEPS
+	};
 	let mut logger = Logger::new(options.verbose_level, total_steps);
 	logger.log(&target_line);
 
@@ -147,7 +155,10 @@ fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: 
 	ensure_cache_dir(logger)?;
 	logger.step();
 
-	compile::run(haru_yml, &source_path, options.release, logger).map_err(Error::Compile)?;
+	let maven_libs = resolve_maven_libs(logger)?;
+	logger.step();
+
+	compile::run(haru_yml, &source_path, options.release, &maven_libs, logger).map_err(Error::Compile)?;
 
 	if target == Target::Sdk {
 		let password = options.password.as_ref().map(|pair| Password { algorithm: pair[0].clone(), value: pair[1].clone() });
@@ -161,6 +172,12 @@ fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: 
 	}
 
 	Ok(())
+}
+
+// step 8.5: resolves maven.yml libraries (if present) into jar paths ready for the compiler classpath and d8 --lib
+fn resolve_maven_libs(logger: &mut Logger) -> Result<Vec<String>, Error> {
+	let resolved = maven::resolve(logger).map_err(Error::Maven)?;
+	Ok(resolved.into_iter().filter_map(|lib| lib.jar_path).collect())
 }
 
 fn read_haru_yml() -> Result<Value, Error> {
