@@ -20,11 +20,22 @@ pub struct BuildArgs {
 	// encrypts the archive, sdk-only
 	#[arg(short = 'p', long = "password", num_args = 2, value_names = ["ALGORITHM", "PASSWORD"])]
 	pub password: Option<Vec<String>>,
+
+	// extra jvm args forwarded to javac/kotlinc as -J<arg>, e.g. -j "-Xmx4g -Xss8m"
+	#[arg(short = 'j', long = "jvm-args", value_name = "ARGS")]
+	pub jvm_args: Option<String>,
 }
 
 pub fn run(args: BuildArgs) {
 	let level = args.verbose.unwrap_or(0);
-	let options = build::BuildOptions { verbose_level: level, release: args.release, compression: args.compression, password: args.password };
+	let jvm_args = args.jvm_args.map(|raw| raw.split_whitespace().map(str::to_string).collect()).unwrap_or_default();
+	let options = build::BuildOptions {
+		verbose_level: level,
+		release: args.release,
+		compression: args.compression,
+		password: args.password,
+		jvm_args,
+	};
 
 	if let Err(err) = build::run(options) {
 		let hint = err.hint();

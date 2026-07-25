@@ -17,12 +17,20 @@ pub enum Step {
 	CreateSrcDir,
 	CreateMetadata,
 	CreateHaruYml,
+	CreateMavenYml,
 	CreateMainFile,
 }
 
 impl Step {
-	pub const ORDER: [Self; 6] =
-		[Self::FindCompiler, Self::FindKotlinStdlib, Self::CreateSrcDir, Self::CreateMetadata, Self::CreateHaruYml, Self::CreateMainFile];
+	pub const ORDER: [Self; 7] = [
+		Self::FindCompiler,
+		Self::FindKotlinStdlib,
+		Self::CreateSrcDir,
+		Self::CreateMetadata,
+		Self::CreateHaruYml,
+		Self::CreateMavenYml,
+		Self::CreateMainFile,
+	];
 }
 
 pub enum Event {
@@ -87,6 +95,7 @@ struct Created {
 	src_dir: bool,
 	metadata_yml: bool,
 	haru_yml: bool,
+	maven_yml: bool,
 	main_file: Option<&'static str>,
 }
 
@@ -94,6 +103,9 @@ impl Created {
 	fn cleanup(&self) {
 		if let Some(path) = self.main_file {
 			let _ = fs::remove_file(path);
+		}
+		if self.maven_yml {
+			let _ = fs::remove_file("maven.yml");
 		}
 		if self.haru_yml {
 			let _ = fs::remove_file("haru.yml");
@@ -138,6 +150,10 @@ fn run_steps(request: &Request, tx: &Sender<Event>, confirm_rx: &Receiver<bool>,
 	created.haru_yml = true;
 	step_done(tx);
 
+	write_maven_yml(tx)?;
+	created.maven_yml = true;
+	step_done(tx);
+
 	let main_path = write_main_file(request, tx)?;
 	created.main_file = Some(main_path);
 	step_done(tx);
@@ -146,7 +162,7 @@ fn run_steps(request: &Request, tx: &Sender<Event>, confirm_rx: &Receiver<bool>,
 }
 
 fn check_no_conflicts() -> Result<(), Error> {
-	for path in ["haru.yml", "metadata.yml", "src"] {
+	for path in ["haru.yml", "metadata.yml", "maven.yml", "src"] {
 		if Path::new(path).exists() {
 			return Err(Error::AlreadyExists(path.to_string()));
 		}
@@ -354,17 +370,22 @@ fn write_haru_yml(request: &Request, compiler_version: &str, kotlin_stdlib_path:
 		None => "# build will link classes from here into the .dex\n# static-libs:\n#   - path/to/jar/kotlin-stdlib.jar".to_string(),
 	};
 
-	let maven_block =
-		"# this field can download libraries from Maven Central; so, it's recommended for androidx, etc\n# maven:\n#    - \n# format: com.example.lib:lib:1.2.3-jre";
-
 	let stubs_block = "# build will use classes from here, like de.shareui.haru, de.robv.xposed, org.telegram.*\n# a stub entry can be a .jar, or a folder of .kt/.java sources\nstubs:\n  - ../TMessagesProj/src/main/java/\n# don't forget to add it to .gitignore :3";
 
 	let contents = format!(
-		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}\n\n{maven_block}\n\n{stubs_block}",
+		"target: sdk\nclass: {}.Main\nmetadata: metadata.yml\nsource: src\n\n{kotlinc_line}\n{javac_line}\n# both are supported, the choice depends on the file format\n\ninclude:\n{include_kt_line}\n{include_java_line}\n\n{libs_block}\n\n{stubs_block}",
 		request.sdk_id,
 	);
 
 	fs::write("haru.yml", contents).map_err(Error::Io)
+}
+
+fn write_maven_yml(tx: &Sender<Event>) -> Result<(), Error> {
+	log(tx, "Creating maven.yml".to_string());
+
+	let contents = "# repositories are connected here\nsources:\n    - https://repo.maven.apache.org/maven2/ # Maven Central\n    - https://dl.google.com/dl/android/maven2/ # Google Maven\n\n# connects dependencies of dependencies into the project; if disabled, you will have to manually connect the deps chain\ntransit: true\n\n# even if found, it checks all repositories for a newer version\ncheckAcrossAllRepos: true\n\n# maven libraries are not used for stubs, they are used for real linking\n\nlibraries:\n    # - com.example.lib:lib:==1.2.3 search for an identical version\n    # - com.example.lib:lib:>=1.2.3 search for the same version or newer\n    # - com.example.lib:lib:<=1.2.3 search for the same version or lower\n    # - com.example.lib:lib search for the latest release\n\n# asks you before installing a transit library, and automatically adds it to the list\ntrustSystem: false\ntrusted:\n    - None\n";
+
+	fs::write("maven.yml", contents).map_err(Error::Io)
 }
 
 fn write_main_file(request: &Request, tx: &Sender<Event>) -> Result<&'static str, Error> {

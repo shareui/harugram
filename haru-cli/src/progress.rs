@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -13,6 +13,7 @@ const BAR_WIDTH: usize = 30;
 const AWAITING_TEXT: &str = "Awaiting response...";
 const AWAITING_SWEEP_MS: u128 = 1400;
 const AWAITING_TICK: Duration = Duration::from_millis(50);
+const BAR_TICK: Duration = Duration::from_millis(200);
 
 pub struct Logger {
 	level: u8,
@@ -73,17 +74,32 @@ impl Logger {
 	}
 
 	// advances the bar by one completed step
-	pub fn step(&mut self) {
+	pub fn step(&self) {
 		self.bar.step();
 	}
 
 	// grows the total step count, used once the number of files to process becomes known
-	pub fn extend_total(&mut self, extra_steps: u32) {
+	pub fn extend_total(&self, extra_steps: u32) {
 		self.bar.extend_total(extra_steps);
 	}
 
-	// clears the bar line once the run is done
-	pub fn finish(&self) {
+	// shows the [installed/total] maven counter right of the bar, called once discovery has counted all transitive deps
+	pub fn set_maven_total(&self, total: u32) {
+		self.bar.set_maven_total(total);
+	}
+
+	// advances the maven installed counter by one, called after an artifact is downloaded or taken from a valid cache entry
+	pub fn maven_installed_step(&self) {
+		self.bar.maven_installed_step();
+	}
+
+	// hides the maven counter again once resolution is done
+	pub fn clear_maven_total(&self) {
+		self.bar.clear_maven_total();
+	}
+
+	// stops the background ticker and clears the bar line once the run is done
+	pub fn finish(&mut self) {
 		self.bar.finish();
 	}
 }
@@ -107,9 +123,16 @@ impl Drop for AwaitingGuard {
 	}
 }
 
-struct ProgressBar {
+struct BarCount {
 	total: u32,
 	current: u32,
+	// maven installed/total
+	maven_installed: u32,
+	maven_total: u32,
+}
+
+struct ProgressBar {
+	count: Arc<Mutex<BarCount>>,
 	start: Instant,
 	fill_color_a: (u8, u8, u8),
 	fill_color_b: (u8, u8, u8),
@@ -117,14 +140,15 @@ struct ProgressBar {
 	frame_color: (u8, u8, u8),
 	awaiting_color_a: (u8, u8, u8),
 	awaiting_color_b: (u8, u8, u8),
+	tick_stop: Arc<AtomicBool>,
+	tick_handle: Option<thread::JoinHandle<()>>,
 }
 
 impl ProgressBar {
 	fn new(total: u32) -> Self {
 		let theme = Theme::get(ThemeName::default());
-		Self {
-			total,
-			current: 0,
+		let mut bar = Self {
+			count: Arc::new(Mutex::new(BarCount { total, current: 0, maven_installed: 0, maven_total: 0 })),
 			start: Instant::now(),
 			fill_color_a: to_rgb(theme.accent),
 			fill_color_b: to_rgb(theme.border_focused),
@@ -132,16 +156,67 @@ impl ProgressBar {
 			frame_color: to_rgb(theme.border_focused),
 			awaiting_color_a: to_rgb(theme.accent_alt),
 			awaiting_color_b: to_rgb(theme.border_focused),
-		}
+			tick_stop: Arc::new(AtomicBool::new(false)),
+			tick_handle: None,
+		};
+		bar.spawn_ticker();
+		bar
+	}
+	fn spawn_ticker(&mut self) {
+		let snapshot = self.snapshot();
+		let stop = Arc::clone(&self.tick_stop);
+		let handle = thread::spawn(move || {
+			while !stop.load(Ordering::Relaxed) {
+				thread::sleep(BAR_TICK);
+				if stop.load(Ordering::Relaxed) {
+					break;
+				}
+				snapshot.render_with_suffix(None);
+			}
+		});
+		self.tick_handle = Some(handle);
 	}
 
-	fn step(&mut self) {
-		self.current = (self.current + 1).min(self.total);
+	fn step(&self) {
+		{
+			let mut count = self.count.lock().unwrap();
+			count.current = (count.current + 1).min(count.total);
+		}
 		self.render();
 	}
 
-	fn extend_total(&mut self, extra_steps: u32) {
-		self.total += extra_steps;
+	fn extend_total(&self, extra_steps: u32) {
+		{
+			let mut count = self.count.lock().unwrap();
+			count.total += extra_steps;
+		}
+		self.render();
+	}
+
+	// sets the maven installed/total counter, total=0 hides it again
+	fn set_maven_total(&self, total: u32) {
+		{
+			let mut count = self.count.lock().unwrap();
+			count.maven_total = total;
+			count.maven_installed = 0;
+		}
+		self.render();
+	}
+
+	fn maven_installed_step(&self) {
+		{
+			let mut count = self.count.lock().unwrap();
+			count.maven_installed = (count.maven_installed + 1).min(count.maven_total);
+		}
+		self.render();
+	}
+
+	fn clear_maven_total(&self) {
+		{
+			let mut count = self.count.lock().unwrap();
+			count.maven_total = 0;
+			count.maven_installed = 0;
+		}
 		self.render();
 	}
 
@@ -187,7 +262,12 @@ impl ProgressBar {
 		AwaitingGuard { stop, handle: Some(handle), snapshot }
 	}
 
-	fn finish(&self) {
+	// stops the background ticker before the caller clears the line, so the ticker can't redraw after
+	fn finish(&mut self) {
+		self.tick_stop.store(true, Ordering::Relaxed);
+		if let Some(handle) = self.tick_handle.take() {
+			let _ = handle.join();
+		}
 		clear_line();
 		println!();
 	}
@@ -198,8 +278,7 @@ impl ProgressBar {
 
 	fn snapshot(&self) -> RenderSnapshot {
 		RenderSnapshot {
-			total: self.total,
-			current: self.current,
+			count: Arc::clone(&self.count),
 			start: self.start,
 			fill_color_a: self.fill_color_a,
 			fill_color_b: self.fill_color_b,
@@ -211,11 +290,10 @@ impl ProgressBar {
 	}
 }
 
-// immut render params
+// immut render params, current/total read through the shared mutex at render time
 #[derive(Clone)]
 struct RenderSnapshot {
-	total: u32,
-	current: u32,
+	count: Arc<Mutex<BarCount>>,
 	start: Instant,
 	fill_color_a: (u8, u8, u8),
 	fill_color_b: (u8, u8, u8),
@@ -228,9 +306,14 @@ struct RenderSnapshot {
 impl RenderSnapshot {
 	// draws the bar
 	fn render_with_suffix(&self, awaiting_since: Option<Instant>) {
+		let (total, current, maven_installed, maven_total) = {
+			let count = self.count.lock().unwrap();
+			(count.total, count.current, count.maven_installed, count.maven_total)
+		};
+
 		clear_line();
 
-		let ratio = if self.total == 0 { 1.0 } else { self.current as f64 / self.total as f64 };
+		let ratio = if total == 0 { 1.0 } else { current as f64 / total as f64 };
 		let filled = (ratio * BAR_WIDTH as f64).round() as usize;
 		let filled = filled.min(BAR_WIDTH);
 		let empty = BAR_WIDTH - filled;
@@ -241,7 +324,7 @@ impl RenderSnapshot {
 
 		let percent = (ratio * 100.0).round() as u32;
 		let elapsed = format_duration(self.start.elapsed());
-		let label = format!("[{percent}%, {}/{}, {elapsed}]", self.current, self.total);
+		let label = format!("[{percent}%, {current}/{total}, {elapsed}]");
 
 		let (fr, fg, fb) = self.frame_color;
 		print!(
@@ -252,6 +335,11 @@ impl RenderSnapshot {
 			"]".truecolor(fr, fg, fb),
 			label.truecolor(fr, fg, fb),
 		);
+
+		if maven_total > 0 {
+			let maven_label = format!("[{maven_installed}/{maven_total}]");
+			print!(" {}", maven_label.truecolor(fr, fg, fb));
+		}
 
 		if let Some(since) = awaiting_since {
 			print!(" {}", self.render_awaiting(since));

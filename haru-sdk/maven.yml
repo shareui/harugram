@@ -1,0 +1,64 @@
+# repositories are connected here
+sources:
+    - https://repo.maven.apache.org/maven2/ # Maven Central
+    - https://dl.google.com/dl/android/maven2/ # Google Maven
+
+# connects dependencies of dependencies into the project; if disabled, you will have to manually connect the deps chain
+transit: true
+
+# even if found, it checks all repositories for a newer version
+checkAcrossAllRepos: true
+
+# maven libraries are not used for stubs, they are used for real linking
+
+libraries:
+    - androidx.core:core
+    - androidx.annotation:annotation
+    - androidx.palette:palette
+    - androidx.exifinterface:exifinterface
+    - androidx.dynamicanimation:dynamicanimation
+    - androidx.sharetarget:sharetarget
+    - androidx.interpolator:interpolator
+    - androidx.biometric:biometric
+    - com.google.android.gms:play-services-cast-framework
+    - androidx.mediarouter:mediarouter
+    - androidx.car.app:app
+    - androidx.car.app:app-projected
+    - org.nanohttpd:nanohttpd
+    - org.checkerframework:checker-qual
+    - org.checkerframework:checker-compat-qual
+    - com.google.firebase:firebase-messaging
+    - com.google.firebase:firebase-config
+    - com.google.firebase:firebase-datatransport
+    - com.google.firebase:firebase-appindexing
+    - com.google.android.gms:play-services-maps
+    - com.google.android.gms:play-services-auth
+    - com.google.android.gms:play-services-vision
+    - com.google.android.gms:play-services-wearable
+    - com.google.android.gms:play-services-location
+    - com.google.android.gms:play-services-wallet
+    - com.googlecode.mp4parser:isoparser
+    - com.stripe:stripe-android
+    - com.google.mlkit:language-id
+    - com.android.billingclient:billing
+    - com.google.code.gson:gson
+    - com.google.guava:guava
+    - com.google.android.play:integrity
+    - com.google.android.gms:play-services-safetynet
+    - com.google.android.gms:play-services-mlkit-subject-segmentation
+    - com.google.android.gms:play-services-mlkit-image-labeling
+    - androidx.credentials:credentials
+    - androidx.credentials:credentials-play-services-auth
+    - io.noties.markwon:core
+    - io.noties.markwon:ext-strikethrough
+    - io.noties.markwon:ext-tables
+    - io.noties.markwon:html
+    - io.noties.markwon:inline-parser
+    - io.noties.markwon:ext-latex
+    - com.google.android.recaptcha:recaptcha
+    - com.android.tools:desugar_jdk_libs
+
+# asks you before installing a transit library, and automatically adds it to the list
+trustSystem: false
+trusted:
+    - None

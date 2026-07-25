@@ -4,6 +4,7 @@ use std::process::Command;
 
 use serde_json::Value;
 
+use crate::actions::res_gen;
 use crate::actions::stubs_parser;
 use crate::actions::toolchain::{self, Tool};
 use crate::progress::Logger;
@@ -14,6 +15,7 @@ const D8_CACHE_DIR: &str = "build/cache/d8";
 const FINAL_DEX: &str = "build/classes.dex";
 const KOTLIN_STAGING_DIR: &str = "build/cache/kotlinc-staging";
 const AAR_EXTRACT_DIR: &str = "build/cache/aar-extract";
+const R_CACHE_DIR: &str = "build/cache/r";
 
 #[derive(Debug)]
 pub enum Error {
@@ -94,14 +96,14 @@ fn fqcn_to_relative_path(fqcn: &str, lang: Lang) -> PathBuf {
 	path
 }
 
-pub fn run(haru_yml: &Value, source_path: &str, release: bool, logger: &mut Logger) -> Result<(), Error> {
+pub fn run(haru_yml: &Value, source_path: &str, release: bool, jvm_args: &[String], maven_libs: &[String], logger: &mut Logger) -> Result<(), Error> {
 	let sources = collect_sources(haru_yml, source_path)?;
 	logger.extend_total(sources.len() as u32);
 
-	let class_files = compile_sources(haru_yml, &sources, source_path, logger)?;
+	let class_files = compile_sources(haru_yml, &sources, source_path, jvm_args, maven_libs, logger)?;
 	logger.extend_total(class_files.len() as u32);
 
-	let static_libs = resolve_static_libs_for_dex(haru_yml, logger)?;
+	let static_libs = resolve_static_libs_for_dex(haru_yml, maven_libs, logger)?;
 	let dex_files = dex_classes(&class_files, &static_libs, logger)?;
 
 	merge_dex(&dex_files, &static_libs, release, logger)?;
@@ -154,8 +156,8 @@ fn walk_dir(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 	Ok(files)
 }
 
-fn compile_sources(haru_yml: &Value, sources: &[SourceFile], source_path: &str, logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
-	let classpath = build_classpath(haru_yml, logger)?;
+fn compile_sources(haru_yml: &Value, sources: &[SourceFile], source_path: &str, jvm_args: &[String], maven_libs: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+	let classpath = build_classpath(haru_yml, maven_libs, logger)?;
 	let stub_sources = stub_sources_needed(haru_yml, source_path, &classpath, logger)?;
 
 	let all_sources: Vec<&SourceFile> = sources.iter().chain(stub_sources.iter()).collect();
@@ -165,22 +167,24 @@ fn compile_sources(haru_yml: &Value, sources: &[SourceFile], source_path: &str, 
 
 	if !kotlin_sources.is_empty() {
 		let joint_sources: Vec<&SourceFile> = kotlin_sources.iter().copied().chain(java_sources.iter().copied()).collect();
-		class_files.extend(compile_kotlin_sources(&joint_sources, &classpath, logger)?);
+		class_files.extend(compile_kotlin_sources(&joint_sources, &classpath, jvm_args, logger)?);
 	}
 
 	if !java_sources.is_empty() {
 		prune_java_cache(&java_sources).map_err(Error::Io)?;
-		class_files.extend(compile_java_sources(&java_sources, &classpath, logger)?);
+		class_files.extend(compile_java_sources(&java_sources, &classpath, jvm_args, logger)?);
 	}
 
 	Ok(class_files)
 }
 
 fn stub_sources_needed(haru_yml: &Value, source_path: &str, classpath: &[String], logger: &mut Logger) -> Result<Vec<SourceFile>, Error> {
+	let mut resolved = generated_stub_sources(logger)?;
+
 	let stub_source_dirs = read_stub_source_dirs(haru_yml);
 	if stub_source_dirs.is_empty() {
 		logger.debug("no stub source directories configured, skipping stub resolution");
-		return Ok(Vec::new());
+		return Ok(resolved);
 	}
 
 	for dir in &stub_source_dirs {
@@ -197,7 +201,6 @@ fn stub_sources_needed(haru_yml: &Value, source_path: &str, classpath: &[String]
 	logger.debug(&format!("skipped {} main-root fqcns, {} fqcns already in a jar", d.skipped_main, d.skipped_in_jar));
 	logger.debug(&format!("{} stub files required for compilation", resolution.required_files.len()));
 
-	let mut resolved = Vec::new();
 	for required in resolution.required_files {
 		logger.debug(&format!("stub resolved: {} -> {}", required.fqcn, required.path.display()));
 		logger.log(&format!("Including stub source {}", required.path.display()));
@@ -206,7 +209,28 @@ fn stub_sources_needed(haru_yml: &Value, source_path: &str, classpath: &[String]
 	Ok(resolved)
 }
 
-fn build_classpath(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>, Error> {
+// R.java and BuildConfig.java are always included when present: their constants are read as
+// fields (R.id.foo, BuildConfig.DEBUG), a shape the import-graph resolver above does not track,
+// so they cannot be reached through the closure
+fn generated_stub_sources(logger: &mut Logger) -> Result<Vec<SourceFile>, Error> {
+	let r_cache_dir = Path::new(R_CACHE_DIR);
+	if !r_cache_dir.is_dir() {
+		return Ok(Vec::new());
+	}
+
+	let mut resolved = Vec::new();
+	for path in walk_dir(r_cache_dir).map_err(Error::Io)? {
+		let file_name = path.file_name().and_then(|n| n.to_str());
+		if !matches!(file_name, Some("R.java") | Some("BuildConfig.java")) {
+			continue;
+		}
+		logger.log(&format!("Including generated {}", path.display()));
+		resolved.push(SourceFile::from_own_source(path, R_CACHE_DIR)?);
+	}
+	Ok(resolved)
+}
+
+fn build_classpath(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml).into_iter().chain(read_stubs(haru_yml)) {
 		let entry_path = Path::new(&path);
@@ -215,11 +239,12 @@ fn build_classpath(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>,
 			continue;
 		}
 		let Some(resolved) = resolve_lib_entry(&path, logger)? else {
-			logger.log(&format!("Skipping {path} on the compiler classpath: not a .jar/.aar (kotlinc/javac can't read .apk/.dex bytecode)"));
+			logger.log(&format!("Skipping {path} on the compiler classpath"));
 			continue;
 		};
 		entries.push(resolved);
 	}
+	entries.extend(maven_libs.iter().cloned());
 	logger.debug(&format!("classpath: {}", entries.join(", ")));
 	Ok(entries)
 }
@@ -256,14 +281,15 @@ fn extract_aar_classes(aar_path: &Path) -> Result<PathBuf, Error> {
 	Ok(out_jar)
 }
 
-fn resolve_static_libs_for_dex(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn resolve_static_libs_for_dex(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml) {
 		match resolve_lib_entry(&path, logger)? {
 			Some(resolved) => entries.push(resolved),
-			None => logger.log(&format!("Skipping {path} as a d8 --lib: not a .jar/.aar")),
+			None => logger.log(&format!("Skipping {path} as a d8 --lib")),
 		}
 	}
+	entries.extend(maven_libs.iter().cloned());
 	Ok(entries)
 }
 
@@ -271,7 +297,7 @@ fn read_stubs(haru_yml: &Value) -> Vec<String> {
 	let Some(stubs) = haru_yml.get("stubs").and_then(Value::as_array) else {
 		return Vec::new();
 	};
-	stubs.iter().filter_map(Value::as_str).map(str::to_string).collect()
+	stubs.iter().filter_map(Value::as_str).map(|raw| res_gen::split_stub_entry(raw).java_path.to_string()).collect()
 }
 
 fn read_stub_source_dirs(haru_yml: &Value) -> Vec<PathBuf> {
@@ -333,7 +359,7 @@ fn remove_empty_dirs(dir: &Path) -> std::io::Result<()> {
 	Ok(())
 }
 
-fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], jvm_args: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
 	let staging_dir = Path::new(KOTLIN_STAGING_DIR);
 	let kotlin_sources: Vec<&&SourceFile> = sources.iter().filter(|s| s.lang == Lang::Kotlin).collect();
 
@@ -348,7 +374,7 @@ fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], logger:
 		logger.log(&format!("Compiling {} to {}", source.path.display(), class_path.display()));
 	}
 
-	let result = run_kotlinc_batch(staging_dir, classpath);
+	let result = run_kotlinc_batch(staging_dir, classpath, jvm_args);
 
 	let _ = fs::remove_dir_all(staging_dir);
 
@@ -380,7 +406,7 @@ fn stage_sources(sources: &[&SourceFile], staging_dir: &Path) -> std::io::Result
 	Ok(())
 }
 
-fn run_kotlinc_batch(staging_dir: &Path, classpath: &[String]) -> Result<(), Error> {
+fn run_kotlinc_batch(staging_dir: &Path, classpath: &[String], jvm_args: &[String]) -> Result<(), Error> {
 	let cache_dir = Path::new(KOTLIN_CACHE_DIR);
 	if cache_dir.exists() {
 		fs::remove_dir_all(cache_dir).map_err(Error::Io)?;
@@ -391,10 +417,11 @@ fn run_kotlinc_batch(staging_dir: &Path, classpath: &[String]) -> Result<(), Err
 	let mut command = Command::new(&binary);
 	command.arg(staging_dir).arg("-d").arg(cache_dir);
 	append_classpath(&mut command, classpath);
+	append_jvm_args(&mut command, jvm_args);
 	run_compiler(&mut command, "kotlinc")
 }
 
-fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], jvm_args: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
 	let cache_dir = Path::new(JAVA_CACHE_DIR);
 	fs::create_dir_all(cache_dir).map_err(Error::Io)?;
 
@@ -404,7 +431,7 @@ fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], logger: &
 	}
 
 	let paths: Vec<&Path> = sources.iter().map(|s| s.path.as_path()).collect();
-	run_javac_batch(&paths, cache_dir, classpath)?;
+	run_javac_batch(&paths, cache_dir, classpath, jvm_args)?;
 
 	for source in sources {
 		logger.log(&format!("Compiled {}", source.path.display()));
@@ -414,12 +441,19 @@ fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], logger: &
 	classes_produced(cache_dir)
 }
 
-fn run_javac_batch(sources: &[&Path], target_dir: &Path, classpath: &[String]) -> Result<(), Error> {
+fn run_javac_batch(sources: &[&Path], target_dir: &Path, classpath: &[String], jvm_args: &[String]) -> Result<(), Error> {
 	let binary = locate_tool(Tool::Javac, "javac")?;
 	let mut command = Command::new(&binary);
 	command.args(sources).arg("-d").arg(target_dir);
 	append_classpath(&mut command, classpath);
+	append_jvm_args(&mut command, jvm_args);
 	run_compiler(&mut command, "javac")
+}
+
+fn append_jvm_args(command: &mut Command, jvm_args: &[String]) {
+	for arg in jvm_args {
+		command.arg(format!("-J{arg}"));
+	}
 }
 
 fn append_classpath(command: &mut Command, classpath: &[String]) {
