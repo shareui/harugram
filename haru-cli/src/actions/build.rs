@@ -9,13 +9,16 @@ use crate::actions::compile;
 use crate::actions::lib_prompt;
 use crate::actions::maven;
 use crate::actions::package::{self, Password};
+use crate::actions::res_gen;
 use crate::progress::Logger;
 
 const HARU_YML: &str = "haru.yml";
 const KOTLIN_MAIN_EXT: &str = "kt";
 const JAVA_MAIN_EXT: &str = "java";
 const CACHE_DIR: &str = "build/cache/";
+const R_CACHE_DIR: &str = "build/cache/r";
 const BASE_STEPS: u32 = 7;
+const RES_GEN_STEPS: u32 = 1;
 const MAVEN_STEPS: u32 = 1;
 const COMPILE_STEPS: u32 = 1;
 const SDK_STEPS: u32 = 2;
@@ -29,6 +32,7 @@ pub struct BuildOptions {
 	pub release: bool,
 	pub compression: Option<u8>,
 	pub password: Option<Vec<String>>,
+	pub jvm_args: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,10 +58,13 @@ pub enum Error {
 	MetadataFieldMissing(&'static str),
 	MetadataFieldTypeMismatch { field: String, expected: &'static str, got: &'static str },
 	ApkNotFound(String),
+	ResDirNotFound(String),
+	GradleFileNotFound(String),
 	SdkOnlyFlag(&'static str),
 	Compile(compile::Error),
 	Maven(maven::Error),
 	Package(package::Error),
+	ResGen(res_gen::Error),
 	Io(std::io::Error),
 }
 
@@ -85,10 +92,13 @@ impl std::fmt::Display for Error {
 				write!(f, "field \"{field}\" in metadata.yml expected type {expected}, got {got}")
 			}
 			Self::ApkNotFound(path) => write!(f, "stub not found: {path}"),
+			Self::ResDirNotFound(path) => write!(f, "resource directory not found: {path}"),
+			Self::GradleFileNotFound(path) => write!(f, "build.gradle not found: {path}"),
 			Self::SdkOnlyFlag(flag) => write!(f, "flag \"{flag}\" can only be used when target is \"sdk\""),
 			Self::Compile(err) => write!(f, "{err}"),
 			Self::Maven(err) => write!(f, "{err}"),
 			Self::Package(err) => write!(f, "{err}"),
+			Self::ResGen(err) => write!(f, "{err}"),
 			Self::Io(err) => write!(f, "{err}"),
 		}
 	}
@@ -116,9 +126,9 @@ pub fn run(options: BuildOptions) -> Result<(), Error> {
 	}
 
 	let total_steps = if target == Target::Sdk {
-		BASE_STEPS + SDK_STEPS + MAVEN_STEPS + COMPILE_STEPS + PACKAGE_STEPS
+		BASE_STEPS + SDK_STEPS + RES_GEN_STEPS + MAVEN_STEPS + COMPILE_STEPS + PACKAGE_STEPS
 	} else {
-		BASE_STEPS + MAVEN_STEPS + COMPILE_STEPS
+		BASE_STEPS + RES_GEN_STEPS + MAVEN_STEPS + COMPILE_STEPS
 	};
 	let mut logger = Logger::new(options.verbose_level, total_steps);
 	logger.log(&target_line);
@@ -154,11 +164,13 @@ fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: 
 	logger.step();
 	ensure_cache_dir(logger)?;
 	logger.step();
+	generate_stubs(haru_yml, &source_path, logger)?;
+	logger.step();
 
 	let maven_libs = resolve_maven_libs(logger)?;
 	logger.step();
 
-	compile::run(haru_yml, &source_path, options.release, &maven_libs, logger).map_err(Error::Compile)?;
+	compile::run(haru_yml, &source_path, options.release, &options.jvm_args, &maven_libs, logger).map_err(Error::Compile)?;
 
 	if target == Target::Sdk {
 		let password = options.password.as_ref().map(|pair| Password { algorithm: pair[0].clone(), value: pair[1].clone() });
@@ -471,26 +483,136 @@ fn json_type_name(value: &Value) -> &'static str {
 }
 
 // step 8: every path under stubs must exist, offers an interactive system search if missing
+// a stub entry may be "java_path", "java_path|res_path", "java_path|res_path|build_gradle_path"
+// or "java_path|res_path|build_gradle_path|gradle_properties_path"
 fn check_stubs(haru_yml: &Value, logger: &mut Logger) -> Result<(), Error> {
 	let Some(stubs) = haru_yml.get("stubs").and_then(Value::as_array) else {
 		return Ok(());
 	};
 	for stub in stubs {
-		let Some(path) = stub.as_str() else {
+		let Some(raw) = stub.as_str() else {
 			continue;
 		};
-		let entry = Path::new(path);
-		if entry.is_dir() {
-			logger.log(&format!("Stub folder found: {path}"));
-			continue;
-		}
-		if !entry.exists() {
-			match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Stub, path) {
-				lib_prompt::Resolution::Resolved => {}
-				lib_prompt::Resolution::Aborted => return Err(Error::ApkNotFound(path.to_string())),
+		let entry = res_gen::split_stub_entry(raw);
+
+		let java_entry = Path::new(entry.java_path);
+		if java_entry.is_dir() {
+			logger.log(&format!("Stub folder found: {}", entry.java_path));
+		} else {
+			if !java_entry.exists() {
+				match lib_prompt::resolve_missing(logger, lib_prompt::Kind::Stub, entry.java_path) {
+					lib_prompt::Resolution::Resolved => {}
+					lib_prompt::Resolution::Aborted => return Err(Error::ApkNotFound(entry.java_path.to_string())),
+				}
 			}
+			logger.log(&format!("Stub found: {}", entry.java_path));
 		}
-		logger.log(&format!("Stub found: {path}"));
+
+		if let Some(res_path) = entry.res_path {
+			if !Path::new(res_path).is_dir() {
+				return Err(Error::ResDirNotFound(res_path.to_string()));
+			}
+			logger.log(&format!("Resource folder found: {res_path}"));
+		}
+
+		if let Some(gradle_path) = entry.gradle_path {
+			if !Path::new(gradle_path).is_file() {
+				return Err(Error::GradleFileNotFound(gradle_path.to_string()));
+			}
+			logger.log(&format!("build.gradle found: {gradle_path}"));
+		}
+
+		if let Some(gradle_properties_path) = entry.gradle_properties_path {
+			if !Path::new(gradle_properties_path).is_file() {
+				return Err(Error::GradleFileNotFound(gradle_properties_path.to_string()));
+			}
+			logger.log(&format!("gradle.properties found: {gradle_properties_path}"));
+		}
+	}
+	Ok(())
+}
+
+// step 8.5: generates build/cache/r/<package>/R.java and BuildConfig.java for every package that
+// needs them, discovered by scanning main source + stub java roots
+fn generate_stubs(haru_yml: &Value, source_path: &str, logger: &mut Logger) -> Result<(), Error> {
+	let Some(stubs) = haru_yml.get("stubs").and_then(Value::as_array) else {
+		return Ok(());
+	};
+	let stub_entries: Vec<&str> = stubs.iter().filter_map(Value::as_str).collect();
+
+	let r_cache_dir = Path::new(R_CACHE_DIR);
+	if r_cache_dir.exists() {
+		fs::remove_dir_all(r_cache_dir).map_err(Error::Io)?;
+	}
+	if stub_entries.is_empty() {
+		return Ok(());
+	}
+
+	let mut scan_roots: Vec<&Path> = vec![Path::new(source_path)];
+	for raw in &stub_entries {
+		let path = Path::new(res_gen::split_stub_entry(*raw).java_path);
+		if path.is_dir() {
+			scan_roots.push(path);
+		}
+	}
+
+	generate_r_java(&stub_entries, &scan_roots, r_cache_dir, logger)?;
+	generate_build_config(&stub_entries, &scan_roots, r_cache_dir, logger)?;
+	Ok(())
+}
+
+// generates R.java for every package that imports R, using resources from every res path in stubs
+fn generate_r_java(stub_entries: &[&str], scan_roots: &[&Path], r_cache_dir: &Path, logger: &mut Logger) -> Result<(), Error> {
+	let res_dirs: Vec<&str> = stub_entries.iter().filter_map(|raw| res_gen::split_stub_entry(*raw).res_path).collect();
+	if res_dirs.is_empty() {
+		return Ok(());
+	}
+
+	let mut index = res_gen::ResourceIndex::default();
+	for res_dir in res_dirs {
+		let scanned = res_gen::scan_res_dir(Path::new(res_dir)).map_err(Error::ResGen)?;
+		index.merge(scanned);
+	}
+	if index.is_empty() {
+		return Ok(());
+	}
+
+	let packages = res_gen::find_r_packages(scan_roots).map_err(Error::ResGen)?;
+	if packages.is_empty() {
+		logger.debug("no \"import <package>.R;\" found, skipping R.java generation");
+		return Ok(());
+	}
+
+	for package in &packages {
+		let written = res_gen::write_r_java(r_cache_dir, package, &index).map_err(Error::ResGen)?;
+		logger.log(&format!("Generated {}", written.display()));
+	}
+	Ok(())
+}
+
+// generates BuildConfig.java for every package that imports BuildConfig, using the first
+// build.gradle (and its matching gradle.properties, if given) found among the stub entries
+fn generate_build_config(stub_entries: &[&str], scan_roots: &[&Path], r_cache_dir: &Path, logger: &mut Logger) -> Result<(), Error> {
+	let Some(entry) = stub_entries.iter().map(|raw| res_gen::split_stub_entry(*raw)).find(|entry| entry.gradle_path.is_some()) else {
+		return Ok(());
+	};
+	let gradle_path = entry.gradle_path.expect("checked by find() above");
+
+	let packages = res_gen::find_build_config_packages(scan_roots).map_err(Error::ResGen)?;
+	if packages.is_empty() {
+		logger.debug("no \"import <package>.BuildConfig;\" found, skipping BuildConfig.java generation");
+		return Ok(());
+	}
+
+	let properties = match entry.gradle_properties_path {
+		Some(path) => res_gen::parse_gradle_properties(Path::new(path)).map_err(Error::ResGen)?,
+		None => Default::default(),
+	};
+	let config = res_gen::parse_build_gradle(Path::new(gradle_path), &properties).map_err(Error::ResGen)?;
+
+	for package in &packages {
+		let written = res_gen::write_build_config(r_cache_dir, package, &config).map_err(Error::ResGen)?;
+		logger.log(&format!("Generated {}", written.display()));
 	}
 	Ok(())
 }

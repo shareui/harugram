@@ -33,6 +33,9 @@ pub fn extract(tokens: &[Token]) -> FileFacts {
 				i += 1;
 				i = collect_type_refs_until_boundary(tokens, i, &mut facts.type_refs);
 			}
+			Token::Ident(word) if is_capitalized(word) && !after_type_declaration_keyword(tokens, i) && starts_declaration(tokens, i) => {
+				i = collect_type_refs_until_boundary(tokens, i, &mut facts.type_refs);
+			}
 			_ => i += 1,
 		}
 	}
@@ -137,6 +140,52 @@ fn is_capitalized(word: &str) -> bool {
 	word.chars().next().is_some_and(char::is_uppercase)
 }
 
+fn after_type_declaration_keyword(tokens: &[Token], i: usize) -> bool {
+	i > 0 && matches!(tokens.get(i - 1), Some(Token::Ident(word)) if matches!(word.as_str(), "class" | "interface" | "enum" | "record"))
+}
+
+fn starts_declaration(tokens: &[Token], i: usize) -> bool {
+	let Some(Token::Ident(_)) = tokens.get(i) else {
+		return false;
+	};
+	let mut j = i + 1;
+	while tokens.get(j) == Some(&Token::Dot) {
+		let Some(Token::Ident(_)) = tokens.get(j + 1) else {
+			return false;
+		};
+		j += 2;
+	}
+	if tokens.get(j) == Some(&Token::Less) {
+		let Some(next) = skip_generic_args(tokens, j) else {
+			return false;
+		};
+		j = next;
+	}
+	matches!(tokens.get(j), Some(Token::Ident(_)))
+}
+
+fn skip_generic_args(tokens: &[Token], less_index: usize) -> Option<usize> {
+	let mut depth = 0;
+	let mut j = less_index;
+	loop {
+		match tokens.get(j) {
+			Some(Token::Less) => {
+				depth += 1;
+				j += 1;
+			}
+			Some(Token::Greater) => {
+				depth -= 1;
+				j += 1;
+				if depth == 0 {
+					return Some(j);
+				}
+			}
+			Some(Token::Ident(_) | Token::Dot | Token::Comma) => j += 1,
+			_ => return None,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -195,5 +244,27 @@ mod tests {
 		let tokens = tokenize("class Foo extends bar { }");
 		let facts = extract(&tokens);
 		assert!(!facts.type_refs.contains(&"bar".to_string()));
+	}
+
+	#[test]
+	fn extracts_field_declaration_without_keyword() {
+		let tokens = tokenize("class Foo { public WebMetadataCache.WebMetadata meta; }");
+		let facts = extract(&tokens);
+		assert!(facts.type_refs.contains(&"WebMetadataCache.WebMetadata".to_string()));
+	}
+
+	#[test]
+	fn extracts_method_return_type_without_keyword() {
+		let tokens = tokenize("class Foo { private MathSpan mathSpanAt(float x) { } }");
+		let facts = extract(&tokens);
+		assert!(facts.type_refs.contains(&"MathSpan".to_string()));
+	}
+
+	#[test]
+	fn does_not_treat_declared_class_name_as_type_ref() {
+		let tokens = tokenize("public class Foo extends Bar { }");
+		let facts = extract(&tokens);
+		assert!(!facts.type_refs.contains(&"Foo".to_string()));
+		assert!(facts.type_refs.contains(&"Bar".to_string()));
 	}
 }

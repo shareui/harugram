@@ -6,5 +6,6 @@ pub mod lib_prompt;
 pub mod maven;
 pub mod new;
 pub mod package;
+pub mod res_gen;
 pub mod stubs_parser;
 pub mod toolchain;
