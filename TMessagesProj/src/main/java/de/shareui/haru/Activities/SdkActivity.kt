@@ -269,9 +269,9 @@ class SdkActivity : BaseFragment() {
     /** exteraGram-style container: metadata block on one side, switch on the other. */
     private inner class SdkCell(context: Context) : FrameLayout(context) {
 
+        private val idView: TextView
         private val nameView: TextView
         private val infoView: TextView
-        private val idView: TextView
         private val switchView: Switch
 
         init {
@@ -283,10 +283,20 @@ class SdkActivity : BaseFragment() {
 
             val texts = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
-            nameView = TextView(context).apply {
+            idView = TextView(context).apply {
                 setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f)
                 setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
                 typeface = AndroidUtilities.bold()
+                setLines(1)
+                maxLines = 1
+                setSingleLine(true)
+                // The trailing segment is what tells two SDKs apart, so drop the middle.
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                gravity = if (LocaleController.isRTL) Gravity.RIGHT else Gravity.LEFT
+            }
+            nameView = TextView(context).apply {
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
+                setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2))
                 setLines(1)
                 maxLines = 1
                 setSingleLine(true)
@@ -300,19 +310,10 @@ class SdkActivity : BaseFragment() {
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = if (LocaleController.isRTL) Gravity.RIGHT else Gravity.LEFT
             }
-            idView = TextView(context).apply {
-                setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f)
-                setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2))
-                setLines(1)
-                maxLines = 1
-                setSingleLine(true)
-                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-                gravity = if (LocaleController.isRTL) Gravity.RIGHT else Gravity.LEFT
-            }
 
-            texts.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT))
+            texts.addView(idView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT))
+            texts.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 2f, 0f, 0f))
             texts.addView(infoView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 3f, 0f, 0f))
-            texts.addView(idView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 2f, 0f, 0f))
 
             addView(
                 texts,
@@ -349,15 +350,17 @@ class SdkActivity : BaseFragment() {
         }
 
         fun bind(sdk: HaruSdk) {
-            nameView.text = sdk.name
-            infoView.text = describe(sdk)
+            // The id is what identifies an SDK; `name` is optional metadata most
+            // of them never declare, so the title carries the id itself.
             idView.text = sdk.id
-            // The title already is the id when the metadata names no other one.
-            idView.visibility = if (sdk.name == sdk.id) View.GONE else View.VISIBLE
+            nameView.text = sdk.name
+            // Only worth its own line when the metadata declares a real name.
+            nameView.visibility = if (sdk.name == sdk.id) View.GONE else View.VISIBLE
+            infoView.text = describe(sdk)
             switchView.setChecked(SdkManager.isEnabled(sdk.id), true)
         }
 
-        /** `by haru · v0.1.0 · alpha`, skipping whatever the metadata leaves out. */
+        /** `by haru · v0.1.0 (alpha)`, skipping whatever the metadata leaves out. */
         private fun describe(sdk: HaruSdk): String {
             val parts = ArrayList<String>(3)
             parts.add(
@@ -367,11 +370,13 @@ class SdkActivity : BaseFragment() {
                     str(R.string.HaruSdkNoAuthor)
                 }
             )
+            // Version and state belong together: `v0.1.0 (alpha)`.
             if (sdk.version.isNotEmpty()) {
-                parts.add("v${sdk.version}")
-            }
-            if (sdk.state.isNotEmpty()) {
-                parts.add(sdk.state)
+                parts.add(
+                    if (sdk.state.isNotEmpty()) "v${sdk.version} (${sdk.state})" else "v${sdk.version}"
+                )
+            } else if (sdk.state.isNotEmpty()) {
+                parts.add("(${sdk.state})")
             }
             if (!SdkManager.isEnabled(sdk.id)) {
                 parts.add(str(R.string.HaruSdkDisabled))
