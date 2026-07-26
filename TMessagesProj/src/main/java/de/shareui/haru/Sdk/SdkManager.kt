@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import dalvik.system.DexClassLoader
 import de.shareui.haru.HaruLocale
+import de.shareui.haru.api.SdkStates
 import org.telegram.messenger.ApplicationLoader
 import org.telegram.messenger.FileLog
 import java.io.File
@@ -211,6 +212,10 @@ object SdkManager {
 
         val installed = HaruSdk.read(target)
             ?: return InstallResult.Error(Failure.NO_MANIFEST)
+        SdkStates.dispatch(
+            installed.id,
+            if (replaced) SdkStates.Event.UPDATED else SdkStates.Event.INSTALLED
+        )
         return InstallResult.Success(installed, replaced)
     }
 
@@ -218,7 +223,11 @@ object SdkManager {
         stop(sdk)
         active.remove(sdk.id)
         prefs().edit().remove(KEY_ENABLED_PREFIX + sdk.id).apply()
-        return sdk.dir.deleteRecursively()
+        val removed = sdk.dir.deleteRecursively()
+        if (removed) {
+            SdkStates.dispatch(sdk.id, SdkStates.Event.UNINSTALLED)
+        }
+        return removed
     }
 
     /** Unpacks [zip] into [target], refusing entries that would escape it. */
@@ -372,6 +381,7 @@ object SdkManager {
             invoke(loader, sdk, START_METHODS, required = true)
             active[sdk.id] = loader
             FileLog.d("$TAG: started ${sdk.id} v${sdk.version}")
+            SdkStates.dispatch(sdk.id, SdkStates.Event.STARTED)
             null
         } catch (e: Throwable) {
             active.remove(sdk.id)
@@ -391,6 +401,10 @@ object SdkManager {
         } catch (e: Throwable) {
             FileLog.e("$TAG: ${sdk.id} failed to stop", e)
             false
+        } finally {
+            // The loader is gone either way, so the SDK counts as stopped even
+            // when its own teardown hook threw.
+            SdkStates.dispatch(sdk.id, SdkStates.Event.STOPPED)
         }
     }
 
@@ -400,6 +414,10 @@ object SdkManager {
      */
     fun setEnabled(sdk: HaruSdk, enabled: Boolean): Throwable? {
         writeEnabled(sdk.id, enabled)
+        SdkStates.dispatch(
+            sdk.id,
+            if (enabled) SdkStates.Event.ENABLED else SdkStates.Event.DISABLED
+        )
         return if (enabled) {
             start(sdk)
         } else {

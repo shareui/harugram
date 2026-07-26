@@ -11167,6 +11167,10 @@
     <string name="HaruDebugMenu">Debug menu</string>
     <string name="HaruOpenLogs">Open logs</string>
     <string name="HaruVerboseLogging">Verbose logging</string>
+    <string name="HaruLogs">Logs</string>
+    <string name="HaruLogsEmpty">Nothing has been logged yet. Enable verbose logging in the debug menu to also see debug lines.</string>
+    <string name="HaruLogCopied">Log line copied to clipboard</string>
+    <string name="HaruLogsCopied">Logs copied to clipboard</string>
     <string name="HaruSettings">Haru settings</string>
     <string name="HaruNavigation">Navigation</string>
     <string name="HaruInstallSdk">Install SDK</string>

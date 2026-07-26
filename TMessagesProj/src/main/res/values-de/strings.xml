@@ -1383,6 +1383,10 @@
     <string name="HaruDebugMenu">Debug-Menü</string>
     <string name="HaruOpenLogs">Protokolle öffnen</string>
     <string name="HaruVerboseLogging">Ausführliche Protokollierung</string>
+    <string name="HaruLogs">Protokolle</string>
+    <string name="HaruLogsEmpty">Es wurde noch nichts protokolliert. Aktiviere die ausführliche Protokollierung im Debug-Menü, um auch Debug-Zeilen zu sehen.</string>
+    <string name="HaruLogCopied">Protokollzeile kopiert</string>
+    <string name="HaruLogsCopied">Protokolle in die Zwischenablage kopiert</string>
     <string name="HaruSettings">Haru-Einstellungen</string>
     <string name="HaruNavigation">Navigation</string>
     <string name="HaruInstallSdk">SDK installieren</string>
