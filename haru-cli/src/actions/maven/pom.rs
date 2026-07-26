@@ -17,8 +17,16 @@ pub struct RawPom {
 	pub packaging: Option<String>,
 	pub parent: Option<RawParent>,
 	#[serde(rename = "dependencyManagement")]
-	pub dependency_management: Option<RawDependencyBlock>,
+	pub dependency_management: Option<RawDependencyManagement>,
 	pub dependencies: Option<RawDependencyBlock>,
+}
+
+// <dependencyManagement> wraps its entries in another <dependencies> element, unlike the
+// project-level block, so it needs the extra level to deserialize into
+#[derive(Debug, Deserialize, Default)]
+pub struct RawDependencyManagement {
+	#[serde(default)]
+	pub dependencies: RawDependencyBlock,
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,7 +158,7 @@ pub fn resolve(raw: RawPom, xml: &str, parent: Option<&ResolvedPom>, coordinate_
 		dependency_management.extend(parent.dependency_management.clone());
 	}
 	if let Some(block) = &raw.dependency_management {
-		for dependency in &block.dependency {
+		for dependency in &block.dependencies.dependency {
 			let Some(version) = &dependency.version else { continue };
 			let resolved_version = substitute(version, &properties);
 			dependency_management.insert((dependency.group_id.clone(), dependency.artifact_id.clone()), resolved_version);

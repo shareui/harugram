@@ -43,5 +43,6 @@ pub fn run(args: BuildArgs) {
 		if let Some(hint) = hint {
 			eprintln!("{}", hint.bright_black());
 		}
+		std::process::exit(1);
 	}
 }
