@@ -1400,5 +1400,25 @@
     <string name="HaruIdSeparatorHint">Zeichen zwischen Zifferngruppen</string>
     <string name="HaruIdSeparatorNone">Keins</string>
     <string name="HaruIdCopied">ID in die Zwischenablage kopiert</string>
+    <string name="HaruSdkList">SDKs</string>
+    <string name="HaruSdkEmpty">Noch keine SDKs installiert. Über die Schaltfläche oben rechts installieren.</string>
+    <string name="HaruSdkInfo">Aktivierte SDKs werden beim Start von Haru geladen. Zum Löschen ein SDK gedrückt halten.</string>
+    <string name="HaruSdkInstalled">%1$s installiert</string>
+    <string name="HaruSdkUpdated">%1$s aktualisiert</string>
+    <string name="HaruSdkRemoved">%1$s entfernt</string>
+    <string name="HaruSdkDelete">Löschen</string>
+    <string name="HaruSdkDeleteTitle">SDK löschen</string>
+    <string name="HaruSdkDeleteMessage">%1$s löschen? Die Dateien werden vom Gerät entfernt.</string>
+    <string name="HaruSdkByAuthor">von %1$s</string>
+    <string name="HaruSdkNoAuthor">unbekannter Autor</string>
+    <string name="HaruSdkDisabled">deaktiviert</string>
+    <string name="HaruSdkNotLoaded">Neustart erforderlich</string>
+    <string name="HaruSdkRestartToUnload">%1$s bleibt bis zum Neustart von Haru geladen</string>
+    <string name="HaruSdkErrorRead">Die ausgewählte Datei kann nicht gelesen werden</string>
+    <string name="HaruSdkErrorArchive">Das ist kein gültiges SDK-Archiv</string>
+    <string name="HaruSdkErrorManifest">haru.yml fehlt oder ist ungültig</string>
+    <string name="HaruSdkErrorDex">classes.dex fehlt im Archiv</string>
+    <string name="HaruSdkErrorInstall">Installation fehlgeschlagen</string>
+    <string name="HaruSdkErrorStart">%1$s konnte nicht gestartet werden</string>
 
 </resources>

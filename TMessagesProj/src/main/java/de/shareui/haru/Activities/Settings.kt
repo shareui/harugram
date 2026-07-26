@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
+import de.shareui.haru.Sdk.SdkManager
 import org.telegram.messenger.AndroidUtilities
 import org.telegram.messenger.R
 import org.telegram.ui.ActionBar.ActionBar
@@ -41,6 +42,7 @@ class Settings : BaseFragment() {
     private var listAdapter: ListAdapter? = null
 
     private var installSdkRow = -1
+    private var sdkListRow = -1
     private var sectionRow = -1
     private var showIdRow = -1
     private var idSeparatorRow = -1
@@ -56,6 +58,7 @@ class Settings : BaseFragment() {
     private fun updateRows() {
         rowCount = 0
         installSdkRow = rowCount++
+        sdkListRow = rowCount++
         sectionRow = rowCount++
         showIdRow = rowCount++
         idSeparatorRow = rowCount++
@@ -91,6 +94,7 @@ class Settings : BaseFragment() {
             setOnItemClickListener { view, position ->
                 when (position) {
                     installSdkRow -> openFilePicker()
+                    sdkListRow -> presentFragment(SdkActivity())
                     showIdRow -> {
                         val enabled = !HaruLocale.isShowId()
                         HaruLocale.setShowId(enabled)
@@ -249,10 +253,11 @@ class Settings : BaseFragment() {
     }
 
     override fun onActivityResultFragment(requestCode: Int, resultCode: Int, data: Intent?) {
-        // SDK file selected; TODO
-        if (requestCode == REQUEST_INSTALL_SDK && resultCode == Activity.RESULT_OK) {
-            // intentionally empty
+        if (requestCode != REQUEST_INSTALL_SDK || resultCode != Activity.RESULT_OK) {
+            return
         }
+        val uri = data?.data ?: return
+        install(this, uri) { listAdapter?.notifyDataSetChanged() }
     }
 
     override fun onResume() {
@@ -298,8 +303,16 @@ class Settings : BaseFragment() {
                     val cell = holder.itemView as TextSettingsCell
                     when (position) {
                         installSdkRow -> {
-                            cell.setText(str(R.string.HaruInstallSdk), false)
+                            cell.setText(str(R.string.HaruInstallSdk), true)
                             cell.setIcon(R.drawable.msg_download)
+                        }
+                        sdkListRow -> {
+                            cell.setTextAndValue(
+                                str(R.string.HaruSdkList),
+                                SdkManager.list().size.toString(),
+                                false
+                            )
+                            cell.setIcon(R.drawable.msg_plugins)
                         }
                         idSeparatorRow -> {
                             cell.setTextAndValue(

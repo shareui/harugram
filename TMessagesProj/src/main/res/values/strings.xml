@@ -11191,5 +11191,25 @@
     <string name="HaruIdMeta" translatable="false">(%1$d, DC%2$d)</string>
     <string name="HaruIdMetaNoDc" translatable="false">(%1$d)</string>
     <string name="HaruIdCopied">ID copied to clipboard</string>
+    <string name="HaruSdkList">SDKs</string>
+    <string name="HaruSdkEmpty">No SDKs installed yet. Use the button in the top right corner to install one.</string>
+    <string name="HaruSdkInfo">Enabled SDKs are loaded when Haru starts. Hold an SDK to delete it.</string>
+    <string name="HaruSdkInstalled">%1$s installed</string>
+    <string name="HaruSdkUpdated">%1$s updated</string>
+    <string name="HaruSdkRemoved">%1$s removed</string>
+    <string name="HaruSdkDelete">Delete</string>
+    <string name="HaruSdkDeleteTitle">Delete SDK</string>
+    <string name="HaruSdkDeleteMessage">Delete %1$s? Its files will be removed from this device.</string>
+    <string name="HaruSdkByAuthor">by %1$s</string>
+    <string name="HaruSdkNoAuthor">unknown author</string>
+    <string name="HaruSdkDisabled">disabled</string>
+    <string name="HaruSdkNotLoaded">restart required</string>
+    <string name="HaruSdkRestartToUnload">%1$s stays loaded until Haru restarts</string>
+    <string name="HaruSdkErrorRead">Can\'t read the selected file</string>
+    <string name="HaruSdkErrorArchive">This is not a valid SDK archive</string>
+    <string name="HaruSdkErrorManifest">haru.yml is missing or invalid</string>
+    <string name="HaruSdkErrorDex">classes.dex is missing from the archive</string>
+    <string name="HaruSdkErrorInstall">Installation failed</string>
+    <string name="HaruSdkErrorStart">%1$s failed to start</string>
 
 </resources>

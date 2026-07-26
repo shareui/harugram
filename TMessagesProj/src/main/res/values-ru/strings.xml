@@ -288,5 +288,25 @@
     <string name="HaruIdSeparatorHint">Символ между группами цифр</string>
     <string name="HaruIdSeparatorNone">Нет</string>
     <string name="HaruIdCopied">ID скопирован</string>
+    <string name="HaruSdkList">Список SDK</string>
+    <string name="HaruSdkEmpty">SDK пока не установлены. Кнопка в правом верхнем углу установит первый.</string>
+    <string name="HaruSdkInfo">Включённые SDK загружаются при запуске Haru. Удерживайте SDK, чтобы удалить его.</string>
+    <string name="HaruSdkInstalled">%1$s установлен</string>
+    <string name="HaruSdkUpdated">%1$s обновлён</string>
+    <string name="HaruSdkRemoved">%1$s удалён</string>
+    <string name="HaruSdkDelete">Удалить</string>
+    <string name="HaruSdkDeleteTitle">Удаление SDK</string>
+    <string name="HaruSdkDeleteMessage">Удалить %1$s? Его файлы будут стёрты с устройства.</string>
+    <string name="HaruSdkByAuthor">от %1$s</string>
+    <string name="HaruSdkNoAuthor">автор неизвестен</string>
+    <string name="HaruSdkDisabled">выключен</string>
+    <string name="HaruSdkNotLoaded">нужен перезапуск</string>
+    <string name="HaruSdkRestartToUnload">%1$s останется загруженным до перезапуска Haru</string>
+    <string name="HaruSdkErrorRead">Не удалось прочитать выбранный файл</string>
+    <string name="HaruSdkErrorArchive">Это не архив SDK</string>
+    <string name="HaruSdkErrorManifest">haru.yml отсутствует или повреждён</string>
+    <string name="HaruSdkErrorDex">В архиве нет classes.dex</string>
+    <string name="HaruSdkErrorInstall">Не удалось установить</string>
+    <string name="HaruSdkErrorStart">%1$s не запустился</string>
 
 </resources>

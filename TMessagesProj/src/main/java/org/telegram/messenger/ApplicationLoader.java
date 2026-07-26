@@ -345,6 +345,8 @@ public class ApplicationLoader extends Application {
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
         ProxyRotationController.init();
+
+        de.shareui.haru.Main.init();
     }
 
     public static void startPushService() {
