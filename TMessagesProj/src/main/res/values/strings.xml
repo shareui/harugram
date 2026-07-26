@@ -11193,7 +11193,7 @@
     <string name="HaruIdCopied">ID copied to clipboard</string>
     <string name="HaruSdkList">SDKs</string>
     <string name="HaruSdkEmpty">No SDKs installed yet. Use the button in the top right corner to install one.</string>
-    <string name="HaruSdkInfo">Enabled SDKs are loaded when Haru starts. Hold an SDK to delete it.</string>
+    <string name="HaruSdkHoldToDelete">Hold an SDK to delete it.</string>
     <string name="HaruSdkInstalled">%1$s installed</string>
     <string name="HaruSdkUpdated">%1$s updated</string>
     <string name="HaruSdkRemoved">%1$s removed</string>
@@ -11211,5 +11211,9 @@
     <string name="HaruSdkErrorDex">classes.dex is missing from the archive</string>
     <string name="HaruSdkErrorInstall">Installation failed</string>
     <string name="HaruSdkErrorStart">%1$s failed to start</string>
+    <string name="HaruSdkPasswordTitle">Protected SDK</string>
+    <string name="HaruSdkPasswordInfo">This archive is encrypted. Enter the password it was built with.</string>
+    <string name="HaruSdkPasswordHint">Password</string>
+    <string name="HaruSdkErrorPassword">Wrong password. Try again.</string>
 
 </resources>

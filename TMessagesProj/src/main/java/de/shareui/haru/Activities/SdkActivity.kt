@@ -2,10 +2,15 @@ package de.shareui.haru.Activities
 
 import android.app.Activity
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.text.InputType
+import android.text.method.PasswordTransformationMethod
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.inputmethod.EditorInfo
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -26,6 +31,7 @@ import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Cells.TextInfoPrivacyCell
 import org.telegram.ui.Components.BulletinFactory
+import org.telegram.ui.Components.EditTextBoldCursor
 import org.telegram.ui.Components.ItemOptions
 import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.RecyclerListView
@@ -60,7 +66,8 @@ class SdkActivity : BaseFragment() {
     private fun reload() {
         sdks = SdkManager.list()
         rowCount = sdks.size
-        infoRow = rowCount++
+        // Nothing to explain under a filled list; the empty state still needs a hint.
+        infoRow = if (sdks.isEmpty()) rowCount++ else -1
     }
 
     private fun str(resId: Int): String {
@@ -253,9 +260,7 @@ class SdkActivity : BaseFragment() {
                         R.drawable.greydivider_bottom,
                         Theme.key_windowBackgroundGrayShadow
                     )
-                    cell.setText(
-                        if (sdks.isEmpty()) str(R.string.HaruSdkEmpty) else str(R.string.HaruSdkInfo)
-                    )
+                    cell.setText(str(R.string.HaruSdkEmpty))
                 }
             }
         }
@@ -347,6 +352,8 @@ class SdkActivity : BaseFragment() {
             nameView.text = sdk.name
             infoView.text = describe(sdk)
             idView.text = sdk.id
+            // The title already is the id when the metadata names no other one.
+            idView.visibility = if (sdk.name == sdk.id) View.GONE else View.VISIBLE
             switchView.setChecked(SdkManager.isEnabled(sdk.id), true)
         }
 
@@ -377,16 +384,116 @@ class SdkActivity : BaseFragment() {
 }
 
 /**
+ * Asks for the archive password, then hands it to [onEntered]. Shown when the
+ * SDK was built with `haru build -p ...`; a rejected password reopens the same
+ * dialog with the error in place of the hint.
+ */
+private fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntered: (String) -> Unit) {
+    val context = fragment.context ?: fragment.parentActivity ?: return
+    val resourcesProvider = fragment.resourceProvider
+
+    val editText = EditTextBoldCursor(context).apply {
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f)
+        setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider))
+        setHintTextColor(Theme.getColor(Theme.key_groupcreate_hintText, resourcesProvider))
+        hint = HaruLocale.getString(context, R.string.HaruSdkPasswordHint)
+        setFocusable(true)
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        transformationMethod = PasswordTransformationMethod.getInstance()
+        imeOptions = EditorInfo.IME_ACTION_DONE
+        maxLines = 1
+        setSingleLine(true)
+        setPadding(
+            AndroidUtilities.dp(16f),
+            AndroidUtilities.dp(11f),
+            AndroidUtilities.dp(16f),
+            AndroidUtilities.dp(11f)
+        )
+        setCursorWidth(1.5f)
+        setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4, resourcesProvider))
+        background = GradientDrawable().apply {
+            cornerRadius = AndroidUtilities.dp(22f).toFloat()
+            setColor(
+                Theme.multAlpha(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider), 0.06f)
+            )
+        }
+    }
+
+    val container = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        addView(
+            editText,
+            LayoutHelper.createLinear(
+                LayoutHelper.MATCH_PARENT,
+                LayoutHelper.WRAP_CONTENT,
+                20f, 9f, 20f, 9f
+            )
+        )
+    }
+
+    val message = HaruLocale.getString(
+        context,
+        if (wrongPassword) R.string.HaruSdkErrorPassword else R.string.HaruSdkPasswordInfo
+    )
+
+    val builder = AlertDialog.Builder(context, resourcesProvider)
+        .setTitle(HaruLocale.getString(context, R.string.HaruSdkPasswordTitle))
+        .setMessage(message)
+        .setView(container)
+        .setPositiveButton(HaruLocale.getString(context, R.string.HaruInstallSdk)) { dialog, _ ->
+            val entered = editText.text?.toString() ?: ""
+            if (entered.isEmpty()) {
+                AndroidUtilities.shakeView(editText)
+                return@setPositiveButton
+            }
+            AndroidUtilities.hideKeyboard(editText)
+            dialog.dismiss()
+            onEntered(entered)
+        }
+        .setNegativeButton(HaruLocale.getString(context, R.string.Cancel)) { dialog, _ ->
+            dialog.dismiss()
+        }
+
+    builder.makeCustomMaxHeight()
+    builder.setWidth(minOf(AndroidUtilities.dp(320f), AndroidUtilities.displaySize.x * 85 / 100))
+
+    val dialog = builder.create()
+    // The positive button validates the input itself, so it must not auto-close.
+    dialog.setDismissDialogByButtons(false)
+    dialog.setOnShowListener {
+        editText.requestFocus()
+        AndroidUtilities.showKeyboard(editText)
+    }
+    dialog.setOnDismissListener {
+        AndroidUtilities.hideKeyboard(editText)
+    }
+    editText.setOnEditorActionListener { _, actionId, _ ->
+        if (actionId == EditorInfo.IME_ACTION_DONE) {
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.performClick()
+            true
+        } else {
+            false
+        }
+    }
+    fragment.showDialog(dialog)
+}
+
+/**
  * Installs the picked archive off the main thread and reports the outcome.
  * Shared by [SdkActivity] and [Settings], which both offer the install button.
  */
-internal fun install(fragment: BaseFragment, uri: Uri, onDone: () -> Unit) {
+internal fun install(
+    fragment: BaseFragment,
+    uri: Uri,
+    password: String? = null,
+    onDone: () -> Unit
+) {
     val context = fragment.context ?: fragment.parentActivity ?: return
     val progress = AlertDialog(context, AlertDialog.ALERT_TYPE_SPINNER)
     progress.show()
 
     Utilities.globalQueue.postRunnable {
-        val result = SdkManager.install(context, uri)
+        val result = SdkManager.install(context, uri, password)
         AndroidUtilities.runOnUIThread {
             try {
                 progress.dismiss()
@@ -414,6 +521,11 @@ internal fun install(fragment: BaseFragment, uri: Uri, onDone: () -> Unit) {
                         onDone()
                     }
                 }
+                is SdkManager.InstallResult.PasswordRequired -> {
+                    askPassword(fragment, result.wrongPassword) { entered ->
+                        install(fragment, uri, entered, onDone)
+                    }
+                }
                 is SdkManager.InstallResult.Error -> {
                     val resId = when (result.failure) {
                         SdkManager.Failure.UNREADABLE -> R.string.HaruSdkErrorRead
@@ -422,7 +534,13 @@ internal fun install(fragment: BaseFragment, uri: Uri, onDone: () -> Unit) {
                         SdkManager.Failure.NO_DEX -> R.string.HaruSdkErrorDex
                         SdkManager.Failure.IO -> R.string.HaruSdkErrorInstall
                     }
-                    factory.createErrorBulletin(HaruLocale.getString(context, resId)).show()
+                    // The detail carries what actually went wrong (empty stream,
+                    // zip error, ...) — without it these failures are unreportable.
+                    val text = HaruLocale.getString(context, resId)
+                    val detail = result.detail?.takeIf { it.isNotBlank() }
+                    factory.createErrorBulletin(
+                        if (detail != null) "$text\n$detail" else text
+                    ).show()
                 }
             }
         }

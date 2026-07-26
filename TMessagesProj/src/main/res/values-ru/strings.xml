@@ -290,7 +290,7 @@
     <string name="HaruIdCopied">ID скопирован</string>
     <string name="HaruSdkList">Список SDK</string>
     <string name="HaruSdkEmpty">SDK пока не установлены. Кнопка в правом верхнем углу установит первый.</string>
-    <string name="HaruSdkInfo">Включённые SDK загружаются при запуске Haru. Удерживайте SDK, чтобы удалить его.</string>
+    <string name="HaruSdkHoldToDelete">Удерживайте SDK, чтобы удалить его.</string>
     <string name="HaruSdkInstalled">%1$s установлен</string>
     <string name="HaruSdkUpdated">%1$s обновлён</string>
     <string name="HaruSdkRemoved">%1$s удалён</string>
@@ -308,5 +308,9 @@
     <string name="HaruSdkErrorDex">В архиве нет classes.dex</string>
     <string name="HaruSdkErrorInstall">Не удалось установить</string>
     <string name="HaruSdkErrorStart">%1$s не запустился</string>
+    <string name="HaruSdkPasswordTitle">Защищённый SDK</string>
+    <string name="HaruSdkPasswordInfo">Архив зашифрован. Введите пароль, с которым он был собран.</string>
+    <string name="HaruSdkPasswordHint">Пароль</string>
+    <string name="HaruSdkErrorPassword">Неверный пароль. Попробуйте ещё раз.</string>
 
 </resources>

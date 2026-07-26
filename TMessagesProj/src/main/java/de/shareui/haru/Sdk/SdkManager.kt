@@ -7,10 +7,13 @@ import de.shareui.haru.HaruLocale
 import org.telegram.messenger.ApplicationLoader
 import org.telegram.messenger.FileLog
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.lang.reflect.Modifier
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
@@ -48,6 +51,12 @@ object SdkManager {
     sealed class InstallResult {
         data class Success(val sdk: HaruSdk, val replaced: Boolean) : InstallResult()
         data class Error(val failure: Failure, val detail: String? = null) : InstallResult()
+
+        /**
+         * The archive is encrypted (`haru build -p ...`). [wrongPassword] tells a
+         * first ask apart from a retry after a rejected one.
+         */
+        data class PasswordRequired(val wrongPassword: Boolean) : InstallResult()
     }
 
     // region storage
@@ -89,10 +98,16 @@ object SdkManager {
 
     // region install / uninstall
 
-    fun install(context: Context, uri: Uri): InstallResult {
+    /**
+     * Unpacks the archive behind [uri] and installs it. [password] is only used
+     * for archives built with `-p`; without it such an archive comes back as
+     * [InstallResult.PasswordRequired] so the caller can ask the user.
+     */
+    fun install(context: Context, uri: Uri, password: String? = null): InstallResult {
         val cacheDir = context.cacheDir
         val archive = File(cacheDir, "haru_sdk_install.tmp")
         val staging = File(cacheDir, STAGING_DIR)
+        var zipError: Exception? = null
 
         try {
             val input = try {
@@ -102,45 +117,65 @@ object SdkManager {
                 null
             } ?: return InstallResult.Error(Failure.UNREADABLE)
 
-            input.use { source ->
+            val copied = input.use { source ->
                 FileOutputStream(archive).use { target -> source.copyTo(target) }
+            }
+            if (copied == 0L) {
+                // Some providers hand out a Uri they cannot actually stream.
+                return InstallResult.Error(Failure.UNREADABLE, "the picked file is empty")
             }
 
             staging.deleteRecursively()
             staging.mkdirs()
 
-            try {
+            // java.util.zip cannot open an encrypted archive at all, so those go
+            // through the reader that knows WinZip AES.
+            if (HaruZip.isEncrypted(archive)) {
+                if (password.isNullOrEmpty()) {
+                    return InstallResult.PasswordRequired(wrongPassword = false)
+                }
+                val extracted = try {
+                    HaruZip.open(archive)?.use { zip -> extract(zip, staging, password) } ?: 0
+                } catch (e: HaruZip.WrongPasswordException) {
+                    return InstallResult.PasswordRequired(wrongPassword = true)
+                } catch (e: Exception) {
+                    FileLog.e("$TAG: cannot decrypt $archive", e)
+                    return InstallResult.Error(Failure.NOT_AN_ARCHIVE, e.message)
+                }
+                if (extracted == 0) {
+                    return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: no entries")
+                }
+                return finish(staging)
+            }
+
+            var extracted = try {
                 ZipFile(archive).use { zip -> extract(zip, staging) }
             } catch (e: Exception) {
-                FileLog.e(e)
-                return InstallResult.Error(Failure.NOT_AN_ARCHIVE, e.message)
+                FileLog.e("$TAG: $archive ($copied bytes) is not readable as a zip", e)
+                zipError = e
+                0
             }
 
-            val staged = HaruSdk.read(staging)
-                ?: return InstallResult.Error(Failure.NO_MANIFEST)
-            if (!File(staging, CLASSES_DEX).isFile) {
-                return InstallResult.Error(Failure.NO_DEX)
-            }
-
-            val target = dirFor(staged.id)
-            val replaced = target.exists()
-            // A reinstall replaces the whole directory. The copy already loaded in
-            // this process keeps its open dex until the app restarts, so give it
-            // its teardown hook and drop the loader.
-            HaruSdk.read(target)?.let { stop(it) }
-            active.remove(staged.id)
-            target.deleteRecursively()
-            target.parentFile?.mkdirs()
-            if (!staging.renameTo(target)) {
-                staging.copyRecursively(target, overwrite = true)
+            if (extracted == 0) {
+                // ZipFile needs a well-formed central directory; a file that was
+                // truncated or padded in transit still reads back entry by entry.
                 staging.deleteRecursively()
+                staging.mkdirs()
+                extracted = try {
+                    ZipInputStream(FileInputStream(archive)).use { zip -> extract(zip, staging) }
+                } catch (e: Exception) {
+                    FileLog.e("$TAG: streaming read of $archive failed", e)
+                    if (zipError == null) zipError = e
+                    0
+                }
             }
 
-            packDexIntoJar(target)
+            if (extracted == 0) {
+                val reason = zipError?.message ?: "no entries"
+                return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: $reason")
+            }
 
-            val installed = HaruSdk.read(target)
-                ?: return InstallResult.Error(Failure.NO_MANIFEST)
-            return InstallResult.Success(installed, replaced)
+            return finish(staging)
         } catch (e: Exception) {
             FileLog.e(e)
             return InstallResult.Error(Failure.IO, e.message)
@@ -148,6 +183,35 @@ object SdkManager {
             archive.delete()
             staging.deleteRecursively()
         }
+    }
+
+    /** Validates the unpacked [staging] copy and moves it into its own directory. */
+    private fun finish(staging: File): InstallResult {
+        val staged = HaruSdk.read(staging)
+            ?: return InstallResult.Error(Failure.NO_MANIFEST)
+        if (!File(staging, CLASSES_DEX).isFile) {
+            return InstallResult.Error(Failure.NO_DEX)
+        }
+
+        val target = dirFor(staged.id)
+        val replaced = target.exists()
+        // A reinstall replaces the whole directory. The copy already loaded in
+        // this process keeps its open dex until the app restarts, so give it
+        // its teardown hook and drop the loader.
+        HaruSdk.read(target)?.let { stop(it) }
+        active.remove(staged.id)
+        target.deleteRecursively()
+        target.parentFile?.mkdirs()
+        if (!staging.renameTo(target)) {
+            staging.copyRecursively(target, overwrite = true)
+            staging.deleteRecursively()
+        }
+
+        packDexIntoJar(target)
+
+        val installed = HaruSdk.read(target)
+            ?: return InstallResult.Error(Failure.NO_MANIFEST)
+        return InstallResult.Success(installed, replaced)
     }
 
     fun uninstall(sdk: HaruSdk): Boolean {
@@ -158,36 +222,85 @@ object SdkManager {
     }
 
     /** Unpacks [zip] into [target], refusing entries that would escape it. */
-    private fun extract(zip: ZipFile, target: File) {
-        val root = target.canonicalPath + File.separator
+    private fun extract(zip: ZipFile, target: File): Int {
+        var files = 0
         val entries = zip.entries()
         while (entries.hasMoreElements()) {
             val entry: ZipEntry = entries.nextElement()
-            val outFile = File(target, entry.name)
-            if (!outFile.canonicalPath.startsWith(root)) {
-                throw SecurityException("entry escapes the sdk directory: ${entry.name}")
+            if (write(entry.name, entry.isDirectory, target) {
+                    zip.getInputStream(entry).use { source -> it(source) }
+                }
+            ) {
+                files++
             }
-            if (entry.isDirectory) {
-                outFile.mkdirs()
-                continue
+        }
+        return files
+    }
+
+    /** Same, for an archive encrypted with `haru build -p`. */
+    private fun extract(zip: HaruZip.Reader, target: File, password: String?): Int {
+        var files = 0
+        for (entry in zip.entries) {
+            if (write(entry.name, entry.isDirectory, target) {
+                    zip.open(entry, password).use { source -> it(source) }
+                }
+            ) {
+                files++
             }
-            outFile.parentFile?.mkdirs()
-            zip.getInputStream(entry).use { source ->
-                FileOutputStream(outFile).use { out ->
-                    var written = 0L
-                    val buffer = ByteArray(16 * 1024)
-                    while (true) {
-                        val read = source.read(buffer)
-                        if (read <= 0) break
-                        written += read
-                        if (written > MAX_ENTRY_BYTES) {
-                            throw SecurityException("entry too large: ${entry.name}")
-                        }
-                        out.write(buffer, 0, read)
+        }
+        return files
+    }
+
+    /** Same, reading the archive as a stream instead of through its central directory. */
+    private fun extract(zip: ZipInputStream, target: File): Int {
+        var files = 0
+        while (true) {
+            val entry = zip.nextEntry ?: break
+            // The stream stays open across entries, so it is handed over unclosed.
+            if (write(entry.name, entry.isDirectory, target) { it(zip) }) {
+                files++
+            }
+            zip.closeEntry()
+        }
+        return files
+    }
+
+    /**
+     * Writes one entry named [name] under [target]; returns true when a file was
+     * created. [open] hands the entry's bytes to the given consumer.
+     */
+    private inline fun write(
+        name: String,
+        isDirectory: Boolean,
+        target: File,
+        open: ((InputStream) -> Unit) -> Unit
+    ): Boolean {
+        val root = target.canonicalPath + File.separator
+        val outFile = File(target, name)
+        if (!outFile.canonicalPath.startsWith(root)) {
+            throw SecurityException("entry escapes the sdk directory: $name")
+        }
+        if (isDirectory) {
+            outFile.mkdirs()
+            return false
+        }
+        outFile.parentFile?.mkdirs()
+        open { source ->
+            FileOutputStream(outFile).use { out ->
+                var written = 0L
+                val buffer = ByteArray(16 * 1024)
+                while (true) {
+                    val read = source.read(buffer)
+                    if (read <= 0) break
+                    written += read
+                    if (written > MAX_ENTRY_BYTES) {
+                        throw SecurityException("entry too large: $name")
                     }
+                    out.write(buffer, 0, read)
                 }
             }
         }
+        return true
     }
 
     /**

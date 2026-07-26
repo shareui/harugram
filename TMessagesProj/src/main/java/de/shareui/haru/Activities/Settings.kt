@@ -27,6 +27,7 @@ import org.telegram.ui.ActionBar.BaseFragment
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Cells.ShadowSectionCell
 import org.telegram.ui.Cells.TextCheckCell
+import org.telegram.ui.Cells.TextInfoPrivacyCell
 import org.telegram.ui.Cells.TextSettingsCell
 import org.telegram.ui.Components.EditTextBoldCursor
 import org.telegram.ui.Components.LayoutHelper
@@ -278,7 +279,8 @@ class Settings : BaseFragment() {
 
         override fun getItemViewType(position: Int): Int {
             return when (position) {
-                sectionRow, bottomSectionRow -> 1
+                sectionRow -> 2
+                bottomSectionRow -> 1
                 showIdRow -> 3
                 else -> 0
             }
@@ -288,6 +290,15 @@ class Settings : BaseFragment() {
             val view: View = when (viewType) {
                 3 -> TextCheckCell(mContext).apply {
                     setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+                }
+                // Carries the hint that belongs to the SDK rows above it and
+                // doubles as the divider a ShadowSectionCell would draw.
+                2 -> TextInfoPrivacyCell(mContext).apply {
+                    background = Theme.getThemedDrawableByKey(
+                        mContext,
+                        R.drawable.greydivider,
+                        Theme.key_windowBackgroundGrayShadow
+                    )
                 }
                 1 -> ShadowSectionCell(mContext)
                 else -> TextSettingsCell(mContext).apply {
@@ -323,6 +334,10 @@ class Settings : BaseFragment() {
                             cell.setIcon(0)
                         }
                     }
+                }
+                2 -> {
+                    (holder.itemView as TextInfoPrivacyCell)
+                        .setText(str(R.string.HaruSdkHoldToDelete))
                 }
                 3 -> {
                     val cell = holder.itemView as TextCheckCell

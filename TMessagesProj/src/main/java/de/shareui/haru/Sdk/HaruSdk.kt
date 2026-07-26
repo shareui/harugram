@@ -48,7 +48,9 @@ data class HaruSdk(
 
             return HaruSdk(
                 id = id,
-                name = MiniYaml.string(metadata, "name") ?: id.substringAfterLast('.'),
+                // Without a declared name the full id is the honest title; the
+                // last segment alone ("harusdk") says nothing about the SDK.
+                name = MiniYaml.string(metadata, "name") ?: id,
                 version = MiniYaml.string(metadata, "version") ?: "",
                 state = MiniYaml.string(metadata, "state") ?: "",
                 author = MiniYaml.string(metadata, "author") ?: "",

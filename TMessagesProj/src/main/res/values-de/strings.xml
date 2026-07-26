@@ -1402,7 +1402,7 @@
     <string name="HaruIdCopied">ID in die Zwischenablage kopiert</string>
     <string name="HaruSdkList">SDKs</string>
     <string name="HaruSdkEmpty">Noch keine SDKs installiert. Über die Schaltfläche oben rechts installieren.</string>
-    <string name="HaruSdkInfo">Aktivierte SDKs werden beim Start von Haru geladen. Zum Löschen ein SDK gedrückt halten.</string>
+    <string name="HaruSdkHoldToDelete">Zum Löschen ein SDK gedrückt halten.</string>
     <string name="HaruSdkInstalled">%1$s installiert</string>
     <string name="HaruSdkUpdated">%1$s aktualisiert</string>
     <string name="HaruSdkRemoved">%1$s entfernt</string>
@@ -1420,5 +1420,9 @@
     <string name="HaruSdkErrorDex">classes.dex fehlt im Archiv</string>
     <string name="HaruSdkErrorInstall">Installation fehlgeschlagen</string>
     <string name="HaruSdkErrorStart">%1$s konnte nicht gestartet werden</string>
+    <string name="HaruSdkPasswordTitle">Geschütztes SDK</string>
+    <string name="HaruSdkPasswordInfo">Dieses Archiv ist verschlüsselt. Gib das Passwort ein, mit dem es gebaut wurde.</string>
+    <string name="HaruSdkPasswordHint">Passwort</string>
+    <string name="HaruSdkErrorPassword">Falsches Passwort. Versuche es erneut.</string>
 
 </resources>
