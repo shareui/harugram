@@ -17,6 +17,10 @@ struct QueueItem {
 	constraint: Constraint,
 	// None for top-level libraries.yml entries, Some(parent) for transitive dependencies
 	required_by: Option<ResolvedCoordinate>,
+	// set when a pom named a dependency without any version haru could pin down: such a request
+	// resolves to whatever is newest, so it may seed a coordinate nobody else asked for but must
+	// never outrank a version that was actually named somewhere
+	version_guessed: bool,
 }
 
 struct PomCache {
@@ -68,60 +72,31 @@ pub fn resolve(manifest: &Manifest, logger: &mut Logger) -> Result<Vec<ResolvedL
 	Ok(resolved_libraries)
 }
 
+struct Selection {
+	resolved: ResolvedCoordinate,
+	effective_pom: ResolvedPom,
+	source: String,
+	required_by: Option<ResolvedCoordinate>,
+}
+
 fn resolve_queue(manifest: &Manifest, index: &mut cache::Index, pom_cache: &mut PomCache, logger: &mut Logger) -> Result<Vec<ResolvedLibrary>, Error> {
 	let discovered_total = discover_total(manifest, index, pom_cache, logger)?;
 	logger.set_maven_total(discovered_total);
 
-	let mut resolved_libraries: Vec<ResolvedLibrary> = Vec::new();
-	let mut visited: HashSet<Coordinate> = HashSet::new();
+	let selections = select_versions(manifest, index, pom_cache, logger)?;
 	let trusted: HashSet<ResolvedCoordinate> = manifest.trusted.iter().cloned().collect();
 
-	let mut queue: VecDeque<QueueItem> = VecDeque::new();
-	for (coordinate, constraint) in &manifest.libraries {
-		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None });
-	}
+	let mut resolved_libraries: Vec<ResolvedLibrary> = Vec::new();
+	for selection in selections {
+		let Selection { resolved, effective_pom, source, required_by } = selection;
 
-	while let Some(item) = queue.pop_front() {
-		if visited.contains(&item.coordinate) {
-			continue;
-		}
-		visited.insert(item.coordinate.clone());
-
-		let resolved_version = find_version(manifest, &item.coordinate, &item.constraint, index, logger)?;
-		let resolved = ResolvedCoordinate {
-			group_id: item.coordinate.group_id.clone(),
-			artifact_id: item.coordinate.artifact_id.clone(),
-			version: resolved_version,
-		};
-
-		if let Some(dependency) = &item.required_by {
+		if let Some(dependency) = &required_by {
 			if !trusted.contains(&resolved) {
 				if !manifest.trust_system {
 					logger.log(&format!("Installing transitive dependency {resolved}"));
 				} else if !trust::ask_and_remember(logger, dependency, &resolved) {
 					return Err(Error::TrustDenied { dependency: dependency.to_string(), needs: resolved.to_string() });
 				}
-			}
-		}
-
-		logger.log(&format!("Resolved {resolved}"));
-
-		let (effective_pom, source) = fetch_pom_chain(manifest, &resolved, pom_cache, logger)?;
-
-		if manifest.transit {
-			for dependency in &effective_pom.dependencies {
-				if !dependency.needed_at_runtime() {
-					continue;
-				}
-				let constraint = match &dependency.version {
-					Some(version) => Constraint::Eq(unwrap_version_range(version)),
-					None => {
-						logger.log(&format!("No version resolved for {}:{} in {resolved} (missing dependencyManagement entry), falling back to latest", dependency.group_id, dependency.artifact_id));
-						Constraint::Latest
-					}
-				};
-				let child_coordinate = Coordinate { group_id: dependency.group_id.clone(), artifact_id: dependency.artifact_id.clone() };
-				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()) });
 			}
 		}
 
@@ -139,6 +114,80 @@ fn resolve_queue(manifest: &Manifest, index: &mut cache::Index, pom_cache: &mut 
 	Ok(resolved_libraries)
 }
 
+// A coordinate can be asked for at several versions at once — once by maven.yml and again by
+// whatever pulls it in transitively. Gradle settles that by letting the highest version win, and
+// the stubs are the sources of a gradle build, so they only type-check against the same choice:
+// com.google.guava:guava wants checker-qual 3.12.0 while maven.yml pins 2.5.2, and the telegram
+// sources use a class that only exists in 3.x.
+// Selection therefore runs to a fixpoint before anything is downloaded: a higher version replaces
+// the one already picked and re-expands its dependencies, which terminates because a coordinate is
+// only ever re-visited when its version strictly increases.
+fn select_versions(manifest: &Manifest, index: &cache::Index, pom_cache: &mut PomCache, logger: &mut Logger) -> Result<Vec<Selection>, Error> {
+	let mut selected: HashMap<Coordinate, Selection> = HashMap::new();
+	// first-seen order, so the classpath stays stable across runs and keeps direct entries in front
+	let mut order: Vec<Coordinate> = Vec::new();
+
+	let mut queue: VecDeque<QueueItem> = VecDeque::new();
+	for (coordinate, constraint) in &manifest.libraries {
+		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false });
+	}
+
+	while let Some(item) = queue.pop_front() {
+		let already_selected = selected.contains_key(&item.coordinate);
+		if item.version_guessed && already_selected {
+			continue;
+		}
+
+		let version = find_version(manifest, &item.coordinate, &item.constraint, index, logger)?;
+
+		let mut required_by = item.required_by;
+		match selected.get(&item.coordinate) {
+			None => order.push(item.coordinate.clone()),
+			Some(current) => {
+				if compare_versions(&current.resolved.version, &version) != std::cmp::Ordering::Less {
+					continue;
+				}
+				logger.log(&format!("{} {} superseded by {version}", item.coordinate, current.resolved.version));
+				// a library named in maven.yml stays a direct one even when a transitive bumps it
+				if current.required_by.is_none() {
+					required_by = None;
+				}
+			}
+		}
+
+		let resolved = ResolvedCoordinate {
+			group_id: item.coordinate.group_id.clone(),
+			artifact_id: item.coordinate.artifact_id.clone(),
+			version,
+		};
+
+		logger.log(&format!("Resolved {resolved}"));
+
+		let (effective_pom, source) = fetch_pom_chain(manifest, &resolved, pom_cache, logger)?;
+
+		if manifest.transit {
+			for dependency in &effective_pom.dependencies {
+				if !dependency.needed_at_runtime() {
+					continue;
+				}
+				let (constraint, version_guessed) = match &dependency.version {
+					Some(version) => (Constraint::Eq(unwrap_version_range(version)), false),
+					None => {
+						logger.log(&format!("No version resolved for {}:{} in {resolved} (missing dependencyManagement entry), falling back to latest", dependency.group_id, dependency.artifact_id));
+						(Constraint::Latest, true)
+					}
+				};
+				let child_coordinate = Coordinate { group_id: dependency.group_id.clone(), artifact_id: dependency.artifact_id.clone() };
+				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed });
+			}
+		}
+
+		selected.insert(item.coordinate, Selection { resolved, effective_pom, source, required_by });
+	}
+
+	Ok(order.into_iter().filter_map(|coordinate| selected.remove(&coordinate)).collect())
+}
+
 fn discover_total(manifest: &Manifest, index: &cache::Index, pom_cache: &mut PomCache, logger: &mut Logger) -> Result<u32, Error> {
 	let mut visited: HashSet<Coordinate> = HashSet::new();
 
@@ -146,7 +195,7 @@ fn discover_total(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Pom
 		logger.log(&format!("Finding all sub-dependencies for {coordinate}"));
 
 		let mut queue: VecDeque<QueueItem> = VecDeque::new();
-		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None });
+		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false });
 
 		while let Some(item) = queue.pop_front() {
 			if visited.contains(&item.coordinate) {
@@ -175,7 +224,7 @@ fn discover_total(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Pom
 					None => Constraint::Latest,
 				};
 				let child_coordinate = Coordinate { group_id: dependency.group_id.clone(), artifact_id: dependency.artifact_id.clone() };
-				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()) });
+				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed: false });
 			}
 		}
 	}

@@ -46,7 +46,7 @@ mod tests {
 	#[test]
 	fn digest_hex_matches_known_sha256() {
 		let hash = digest_hex(Algorithm::Sha256, b"hello world");
-		assert_eq!(hash, "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde");
+		assert_eq!(hash, "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9");
 	}
 
 	#[test]

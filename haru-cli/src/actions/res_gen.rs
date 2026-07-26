@@ -256,50 +256,48 @@ fn split_top_level_commas(source: &str) -> Vec<String> {
 	parts
 }
 
+// gradle splices the evaluated groovy expression into the generated java verbatim, which is why a
+// String field is written as "\"text\"" in build.gradle: those inner quotes end up being the java
+// ones. The value is only kept when it really is a literal of the declared type, so a shape this
+// cannot evaluate degrades to the type default instead of emitting java that will not compile.
 fn resolve_field_value(java_type: &str, expr: &str, properties: &BTreeMap<String, String>) -> String {
-	if let Some(resolved) = resolve_string_concat(expr, properties) {
-		return format!("\"{}\"", escape_java_string(&resolved));
+	let Some(value) = evaluate_groovy_expr(expr, properties) else {
+		return default_for_type(java_type);
+	};
+
+	match java_type {
+		"boolean" if value == "true" || value == "false" => value,
+		"String" if is_java_string_literal(&value) => value,
+		// a bare property reference carries no java quotes of its own, so it gets them here
+		"String" => format!("\"{}\"", escape_java_string(&value)),
+		"int" | "long" | "short" | "byte" if value.parse::<i64>().is_ok() => value,
+		"float" | "double" if value.parse::<f64>().is_ok() => value,
+		_ => default_for_type(java_type),
 	}
-	let trimmed = expr.trim();
-	if trimmed == "true" || trimmed == "false" {
-		return trimmed.to_string();
-	}
-	if trimmed.chars().all(|c| c.is_ascii_digit() || c == '-') && !trimmed.is_empty() {
-		return trimmed.to_string();
-	}
-	if let Some(value) = properties.get(trimmed) {
-		return format_literal(java_type, value);
-	}
-	default_for_type(java_type)
 }
 
-fn resolve_string_concat(expr: &str, properties: &BTreeMap<String, String>) -> Option<String> {
-	if !expr.contains('+') {
-		return None;
-	}
+// build.gradle only ever builds a buildConfigField value out of quoted literals and
+// gradle.properties references; anything else (a method call, an unknown identifier) is
+// unresolvable here and the caller falls back to the type default
+fn evaluate_groovy_expr(expr: &str, properties: &BTreeMap<String, String>) -> Option<String> {
 	let mut result = String::new();
 	for segment in expr.split('+') {
 		let segment = segment.trim();
-		if let Some(literal) = extract_quoted(segment) {
-			result.push_str(&literal);
-			continue;
+		match extract_quoted(segment) {
+			Some(literal) => result.push_str(&literal),
+			None => result.push_str(properties.get(segment)?),
 		}
-		let value = properties.get(segment)?;
-		result.push_str(value);
 	}
 	Some(result)
+}
+
+fn is_java_string_literal(value: &str) -> bool {
+	value.len() >= 2 && value.starts_with('"') && value.ends_with('"')
 }
 
 // escapes '"' and '\' so a resolved value can be safely embedded in a generated Java string literal
 fn escape_java_string(raw: &str) -> String {
 	raw.chars().flat_map(|c| if c == '"' || c == '\\' { vec!['\\', c] } else { vec![c] }).collect()
-}
-
-fn format_literal(java_type: &str, raw_value: &str) -> String {
-	match java_type {
-		"String" => format!("\"{}\"", escape_java_string(raw_value)),
-		_ => raw_value.to_string(),
-	}
 }
 
 fn default_for_type(java_type: &str) -> String {
@@ -447,12 +445,30 @@ fn scan_file_res_dir(dir: &Path, class_name: &'static str, index: &mut ResourceI
 		if !path.is_file() {
 			continue;
 		}
-		let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+		let Some(name) = path.file_name().and_then(|n| n.to_str()).map(res_name_of_file) else {
 			continue;
 		};
-		index.add(class_name, sanitize_name(stem));
+		index.add(class_name, sanitize_name(name));
+
+		if path.extension().and_then(|e| e.to_str()) == Some("xml") {
+			let contents = fs::read_to_string(&path).map_err(Error::Io)?;
+			for declared in declared_ids(&contents) {
+				index.add("id", sanitize_name(&declared));
+			}
+		}
 	}
 	Ok(())
+}
+
+// every "@+id/name" in a resource xml declares R.id.name, which is how layouts introduce most ids
+fn declared_ids(contents: &str) -> Vec<String> {
+	contents
+		.match_indices("\"@+id/")
+		.map(|(at, marker)| &contents[at + marker.len()..])
+		.filter_map(|rest| rest.split('"').next())
+		.filter(|name| !name.is_empty())
+		.map(str::to_string)
+		.collect()
 }
 
 fn scan_values_dir(dir: &Path, index: &mut ResourceIndex) -> Result<(), Error> {
@@ -526,6 +542,12 @@ fn value_class_for(item_type: &str) -> Option<&'static str> {
 
 fn attr_value(tag: &quick_xml::events::BytesStart, key: &str) -> Option<String> {
 	tag.attributes().flatten().find(|attr| attr.key.as_ref() == key.as_bytes()).map(|attr| String::from_utf8_lossy(&attr.value).to_string())
+}
+
+// aapt names a file resource after everything before the first '.', so nine-patches keep their
+// plain name: "greydivider_bottom.9.png" is R.drawable.greydivider_bottom, not greydivider_bottom_9
+fn res_name_of_file(file_name: &str) -> &str {
+	file_name.split_once('.').map_or(file_name, |(name, _)| name)
 }
 
 // android resource names use '.' and '-' as separators, java identifiers cannot
@@ -620,6 +642,19 @@ mod tests {
 	#[test]
 	fn sanitizes_dashed_names() {
 		assert_eq!(sanitize_name("ic-launcher.round"), "ic_launcher_round");
+	}
+
+	#[test]
+	fn collects_ids_declared_inside_layout_xml() {
+		let layout = "<LinearLayout><TextView android:id=\"@+id/feed_widget_item_text\" /><View android:id=\"@+id/divider\" android:layout_below=\"@id/feed_widget_item_text\" /></LinearLayout>";
+		assert_eq!(declared_ids(layout), vec!["feed_widget_item_text".to_string(), "divider".to_string()]);
+	}
+
+	#[test]
+	fn names_nine_patch_drawables_without_the_density_suffix() {
+		assert_eq!(res_name_of_file("greydivider_bottom.9.png"), "greydivider_bottom");
+		assert_eq!(res_name_of_file("venue_tooltip.png"), "venue_tooltip");
+		assert_eq!(res_name_of_file("chat_layout.xml"), "chat_layout");
 	}
 
 	#[test]
@@ -792,7 +827,8 @@ mod tests {
 		props.insert("APP_VERSION_NAME".to_string(), "12.9.0".to_string());
 		let config = parse_build_gradle(&tmp.join("build.gradle"), &props).unwrap();
 		let field = config.fields.iter().find(|f| f.name == "BUILD_VERSION_STRING").unwrap();
-		assert_eq!(field.value, "\"\\\"12.9.0\\\"\"");
+		// the groovy value is the java literal itself, so it lands in BuildConfig.java as "12.9.0"
+		assert_eq!(field.value, "\"12.9.0\"");
 
 		let _ = fs::remove_dir_all(&tmp);
 	}
