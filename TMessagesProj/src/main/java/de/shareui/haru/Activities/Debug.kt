@@ -53,9 +53,7 @@ class Debug : BaseFragment() {
             adapter = listAdapter
             setOnItemClickListener { view, position ->
                 when (position) {
-                    openLogsRow -> {
-                        // TODO
-                    }
+                    openLogsRow -> presentFragment(Logs())
                     verboseLoggingRow -> {
                         val enabled = !HaruLocale.isVerboseLogging()
                         HaruLocale.setVerboseLogging(enabled)

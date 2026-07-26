@@ -1,8 +1,7 @@
 package de.shareui.harusdk
 
+import de.shareui.harusdk.utils.Log
+
 fun main() {
-    println("Hello haru") // и тебе привет
-    telegramTest()
-    androidTest()
-    ktStdlibTest()
+    Log.debug("SDK de.shareui.harusdk loaded")
 }

@@ -271,6 +271,10 @@
     <string name="HaruDebugMenu">Меню отладки</string>
     <string name="HaruOpenLogs">Открыть логи</string>
     <string name="HaruVerboseLogging">Подробное логгирование</string>
+    <string name="HaruLogs">Логи</string>
+    <string name="HaruLogsEmpty">Пока ничего не залогировано. Включите подробное логгирование в меню отладки, чтобы видеть и отладочные строки.</string>
+    <string name="HaruLogCopied">Строка лога скопирована</string>
+    <string name="HaruLogsCopied">Логи скопированы в буфер обмена</string>
     <string name="HaruSettings">Настройки Haru</string>
     <string name="HaruNavigation">Навигация</string>
     <string name="HaruInstallSdk">Установить SDK</string>
@@ -288,5 +292,29 @@
     <string name="HaruIdSeparatorHint">Символ между группами цифр</string>
     <string name="HaruIdSeparatorNone">Нет</string>
     <string name="HaruIdCopied">ID скопирован</string>
+    <string name="HaruSdkList">Список SDK</string>
+    <string name="HaruSdkEmpty">SDK пока не установлены. Кнопка в правом верхнем углу установит первый.</string>
+    <string name="HaruSdkHoldToDelete">Удерживайте SDK, чтобы удалить его.</string>
+    <string name="HaruSdkInstalled">%1$s установлен</string>
+    <string name="HaruSdkUpdated">%1$s обновлён</string>
+    <string name="HaruSdkRemoved">%1$s удалён</string>
+    <string name="HaruSdkDelete">Удалить</string>
+    <string name="HaruSdkDeleteTitle">Удаление SDK</string>
+    <string name="HaruSdkDeleteMessage">Удалить %1$s? Его файлы будут стёрты с устройства.</string>
+    <string name="HaruSdkByAuthor">от %1$s</string>
+    <string name="HaruSdkNoAuthor">автор неизвестен</string>
+    <string name="HaruSdkDisabled">выключен</string>
+    <string name="HaruSdkNotLoaded">нужен перезапуск</string>
+    <string name="HaruSdkRestartToUnload">%1$s останется загруженным до перезапуска Haru</string>
+    <string name="HaruSdkErrorRead">Не удалось прочитать выбранный файл</string>
+    <string name="HaruSdkErrorArchive">Это не архив SDK</string>
+    <string name="HaruSdkErrorManifest">haru.yml отсутствует или повреждён</string>
+    <string name="HaruSdkErrorDex">В архиве нет classes.dex</string>
+    <string name="HaruSdkErrorInstall">Не удалось установить</string>
+    <string name="HaruSdkErrorStart">%1$s не запустился</string>
+    <string name="HaruSdkPasswordTitle">Защищённый SDK</string>
+    <string name="HaruSdkPasswordInfo">Архив зашифрован. Введите пароль, с которым он был собран.</string>
+    <string name="HaruSdkPasswordHint">Пароль</string>
+    <string name="HaruSdkErrorPassword">Неверный пароль. Попробуйте ещё раз.</string>
 
 </resources>
