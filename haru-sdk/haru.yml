@@ -16,5 +16,5 @@ static-libs:
   - ./libs/kotlin-stdlib.jar
 
 stubs:
-  - ./libs/telegram-stubs.jar
+  - ../TMessagesProj/src/main/java/|../TMessagesProj/src/main/res|../TMessagesProj/build.gradle|../gradle.properties # пиздец
   - ./stubs/android.jar

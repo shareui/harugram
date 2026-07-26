@@ -338,6 +338,12 @@ fn strip_nested_class_suffix(path: &Path) -> PathBuf {
 	path.with_file_name(base)
 }
 
+fn class_belongs_to(class_path: &Path, kotlin_relatives: &std::collections::HashSet<&PathBuf>) -> bool {
+	let relative = class_path.strip_prefix(KOTLIN_CACHE_DIR).unwrap_or(class_path);
+	let stem = strip_nested_class_suffix(&relative.with_extension(""));
+	kotlin_relatives.contains(&stem)
+}
+
 fn remove_empty_dirs(dir: &Path) -> std::io::Result<()> {
 	for entry in fs::read_dir(dir)? {
 		let entry = entry?;
@@ -379,7 +385,9 @@ fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], jvm_arg
 		logger.step();
 	}
 
-	classes_produced(Path::new(KOTLIN_CACHE_DIR))
+	let kotlin_relatives: std::collections::HashSet<&PathBuf> = kotlin_sources.iter().map(|s| &s.relative).collect();
+	let produced = classes_produced(Path::new(KOTLIN_CACHE_DIR))?;
+	Ok(produced.into_iter().filter(|p| class_belongs_to(p, &kotlin_relatives)).collect())
 }
 
 fn stage_sources(sources: &[&SourceFile], staging_dir: &Path) -> std::io::Result<()> {
