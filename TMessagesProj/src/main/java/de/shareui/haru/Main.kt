@@ -8,7 +8,7 @@ class Main : Application() {
     override fun onCreate() {
         super.onCreate()
         HaruLog.log("Main Application started", debug = true)
-        init()
+        init() // sdks init
     }
 
     companion object {

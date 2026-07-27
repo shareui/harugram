@@ -39,6 +39,17 @@ object SdkStates {
         fun onSdkEvent(id: String, event: Event)
     }
 
+    // handed to an sdk at start; id is fixed at construction so the sdk can only
+    // ever read or act on its own state, never another sdk's by passing an id
+    class Self internal constructor(private val id: String) {
+        fun state(): State = stateOf(id)
+        fun isInstalled(): Boolean = SdkStates.isInstalled(id)
+        fun isEnabled(): Boolean = SdkStates.isEnabled(id)
+        fun isRunning(): Boolean = SdkStates.isRunning(id)
+        fun setEnabled(enabled: Boolean): Throwable? = SdkStates.setEnabled(id, enabled)
+        fun stop(): Boolean = SdkStates.stop(id)
+    }
+
     private val listeners = CopyOnWriteArrayList<Listener>()
 
     // region state

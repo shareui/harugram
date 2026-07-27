@@ -65,5 +65,22 @@ data class HaruSdk(
                 null
             }
         }
+
+        // builds an index entry straight from the extracted dir; rawPath/rawSha256
+        // are filled in by the caller once the raw archive has been stored
+        fun toIndexEntry(sdk: HaruSdk, rawPath: String, rawSha256: String): SdkIndexEntry = SdkIndexEntry(
+            id = sdk.id,
+            name = sdk.name,
+            version = sdk.version,
+            state = sdk.state,
+            author = sdk.author,
+            appVersion = sdk.appVersion,
+            source = sdk.source,
+            socials = sdk.socials,
+            entryClass = sdk.entryClass,
+            dirName = sdk.dir.name,
+            rawPath = rawPath,
+            rawSha256 = rawSha256
+        )
     }
 }

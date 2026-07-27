@@ -12,6 +12,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.lang.reflect.Modifier
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
@@ -28,6 +29,7 @@ object SdkManager {
 
     private const val TAG = "HaruSdk"
     private const val ROOT_DIR = "sdk"
+    private const val RAW_DIR = "raw"
     private const val ODEX_DIR = "oat"
     private const val KEY_ENABLED_PREFIX = "sdk_enabled_"
     private const val STAGING_DIR = "haru_sdk_staging"
@@ -40,7 +42,7 @@ object SdkManager {
     // class loaders of sdks loaded in this process, keyed by sdk id
     private val active = LinkedHashMap<String, ClassLoader>()
 
-    enum class Failure { UNREADABLE, NOT_AN_ARCHIVE, NO_MANIFEST, NO_DEX, IO }
+    enum class Failure { UNREADABLE, NOT_AN_ARCHIVE, NO_MANIFEST, NO_DEX, NO_ENTRY_SIGNATURE, IO }
 
     sealed class InstallResult {
         data class Success(val sdk: HaruSdk, val replaced: Boolean) : InstallResult()
@@ -63,15 +65,53 @@ object SdkManager {
 
     fun dirFor(id: String): File = File(rootDir(), sanitizeId(id))
 
-    fun list(): List<HaruSdk> {
-        val dirs = rootDir().listFiles() ?: return emptyList()
-        return dirs
-            .filter { it.isDirectory }
-            .mapNotNull { HaruSdk.read(it) }
-            .sortedBy { it.name.lowercase() }
+    private fun rawDir(): File {
+        val dir = File(rootDir(), RAW_DIR)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
     }
 
-    fun find(id: String): HaruSdk? = HaruSdk.read(dirFor(id))
+    fun rawFileFor(id: String): File = File(rawDir(), "${sanitizeId(id)}.harusdk")
+
+    // index.json is the source of truth; a dir that vanished or lost its
+    // manifest behind the app's back is dropped and the index rescanned
+    fun list(): List<HaruSdk> {
+        val root = rootDir()
+        val entries = SdkIndex.load(root)
+        val stale = entries.any { entry ->
+            val dir = File(root, entry.dirName)
+            HaruSdk.read(dir) == null
+        }
+        if (stale) {
+            return rescan()
+        }
+        return entries.map { it.toSdk(root) }.sortedBy { it.name.lowercase() }
+    }
+
+    fun find(id: String): HaruSdk? = list().firstOrNull { it.id == id }
+
+    // rebuilds index.json from whatever haru.yml manifests are actually on disk
+    private fun rescan(): List<HaruSdk> {
+        val root = rootDir()
+        val dirs = root.listFiles() ?: return emptyList()
+        val previous = SdkIndex.load(root)
+        val rebuilt = dirs
+            .filter { it.isDirectory && it.name != RAW_DIR }
+            .mapNotNull { dir -> HaruSdk.read(dir) }
+        val entries = rebuilt.map { sdk ->
+            val existing = previous.firstOrNull { it.id == sdk.id }
+            val raw = rawFileFor(sdk.id)
+            HaruSdk.toIndexEntry(
+                sdk,
+                rawPath = existing?.rawPath ?: if (raw.isFile) raw.absolutePath else "",
+                rawSha256 = existing?.rawSha256 ?: if (raw.isFile) sha256(raw) else ""
+            )
+        }
+        SdkIndex.save(root, entries)
+        return rebuilt.sortedBy { it.name.lowercase() }
+    }
 
     private fun prefs() = ApplicationLoader.applicationContext
         .getSharedPreferences(HaruLocale.PREFS_NAME, Context.MODE_PRIVATE)
@@ -132,7 +172,7 @@ object SdkManager {
                 if (extracted == 0) {
                     return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: no entries")
                 }
-                return finish(staging)
+                return finish(staging, archive)
             }
 
             var extracted = try {
@@ -162,7 +202,7 @@ object SdkManager {
                 return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: $reason")
             }
 
-            return finish(staging)
+            return finish(staging, archive)
         } catch (e: Exception) {
             FileLog.e(e)
             return InstallResult.Error(Failure.IO, e.message)
@@ -172,11 +212,19 @@ object SdkManager {
         }
     }
 
-    private fun finish(staging: File): InstallResult {
+    private fun finish(staging: File, archive: File): InstallResult {
         val staged = HaruSdk.read(staging)
             ?: return InstallResult.Error(Failure.NO_MANIFEST)
         if (!File(staging, CLASSES_DEX).isFile) {
             return InstallResult.Error(Failure.NO_DEX)
+        }
+
+        // packed here so validation and the final install share the same jar,
+        // instead of packing once to check and again after the move
+        packDexIntoJar(staging)
+        val signatureError = validateEntrySignature(staging, staged)
+        if (signatureError != null) {
+            return InstallResult.Error(Failure.NO_ENTRY_SIGNATURE, signatureError)
         }
 
         val target = dirFor(staged.id)
@@ -192,15 +240,68 @@ object SdkManager {
             staging.deleteRecursively()
         }
 
-        packDexIntoJar(target)
-
         val installed = HaruSdk.read(target)
             ?: return InstallResult.Error(Failure.NO_MANIFEST)
+
+        val raw = rawFileFor(installed.id)
+        archive.copyTo(raw, overwrite = true)
+        val hash = sha256(raw)
+        SdkIndex.upsert(rootDir(), HaruSdk.toIndexEntry(installed, raw.absolutePath, hash))
+
         SdkStates.dispatch(
             installed.id,
             if (replaced) SdkStates.Event.UPDATED else SdkStates.Event.INSTALLED
         )
         return InstallResult.Success(installed, replaced)
+    }
+
+    // loads the staged jar in isolation to check the entry class exposes a
+    // (Context, SdkStates.Self) method before the sdk is ever allowed to run;
+    // returns a concrete reason on failure, or null if the signature is found
+    private fun validateEntrySignature(staging: File, sdk: HaruSdk): String? {
+        val jar = File(staging, CLASSES_JAR)
+        val odex = File(staging.parentFile, "haru_sdk_validate_odex")
+        odex.deleteRecursively()
+        odex.mkdirs()
+        try {
+            val loader = try {
+                DexClassLoader(
+                    jar.absolutePath,
+                    odex.absolutePath,
+                    null,
+                    ApplicationLoader.applicationContext.classLoader
+                )
+            } catch (e: Throwable) {
+                return "cannot load classes.jar: ${e.message ?: e.javaClass.simpleName}"
+            }
+
+            val candidates = listOfNotNull(
+                loadClassOrNull(loader, sdk.entryClass),
+                loadClassOrNull(loader, sdk.entryClass + "Kt")
+            )
+            if (candidates.isEmpty()) {
+                return "entry class not found: ${sdk.entryClass}"
+            }
+
+            val requiredSignature = arrayOf<Class<*>>(Context::class.java, SdkStates.Self::class.java)
+            val hasSignature = candidates.any { clazz ->
+                START_METHODS.any { name ->
+                    try {
+                        clazz.getDeclaredMethod(name, *requiredSignature)
+                        true
+                    } catch (_: NoSuchMethodException) {
+                        false
+                    }
+                }
+            }
+            if (!hasSignature) {
+                val names = START_METHODS.joinToString("/")
+                return "${sdk.entryClass}: no $names(Context, SdkStates.Self)"
+            }
+            return null
+        } finally {
+            odex.deleteRecursively()
+        }
     }
 
     fun uninstall(sdk: HaruSdk): Boolean {
@@ -209,6 +310,8 @@ object SdkManager {
         prefs().edit().remove(KEY_ENABLED_PREFIX + sdk.id).apply()
         val removed = sdk.dir.deleteRecursively()
         if (removed) {
+            rawFileFor(sdk.id).delete()
+            SdkIndex.remove(rootDir(), sdk.id)
             SdkStates.dispatch(sdk.id, SdkStates.Event.UNINSTALLED)
         }
         return removed
@@ -307,6 +410,19 @@ object SdkManager {
             out.closeEntry()
         }
         jar.setReadOnly()
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     // endregion
@@ -408,28 +524,25 @@ object SdkManager {
         }
 
         val context = ApplicationLoader.applicationContext
-        val signatures = arrayOf(arrayOf<Class<*>>(Context::class.java), emptyArray())
+        val self = SdkStates.Self(sdk.id)
+        // install already rejects anything without this exact signature, so
+        // start() only ever needs to look for it
+        val signature = arrayOf<Class<*>>(Context::class.java, SdkStates.Self::class.java)
         for (clazz in candidates) {
             for (name in names) {
-                for (signature in signatures) {
-                    val method = try {
-                        clazz.getDeclaredMethod(name, *signature)
-                    } catch (_: NoSuchMethodException) {
-                        continue
-                    }
-                    method.isAccessible = true
-                    val target = if (Modifier.isStatic(method.modifiers)) {
-                        null
-                    } else {
-                        instanceOf(clazz) ?: continue
-                    }
-                    if (signature.isEmpty()) {
-                        method.invoke(target)
-                    } else {
-                        method.invoke(target, context)
-                    }
-                    return true
+                val method = try {
+                    clazz.getDeclaredMethod(name, *signature)
+                } catch (_: NoSuchMethodException) {
+                    continue
                 }
+                method.isAccessible = true
+                val target = if (Modifier.isStatic(method.modifiers)) {
+                    null
+                } else {
+                    instanceOf(clazz) ?: continue
+                }
+                method.invoke(target, context, self)
+                return true
             }
         }
 

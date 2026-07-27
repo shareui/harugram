@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.util.TypedValue
@@ -16,12 +17,17 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
+import de.shareui.haru.api.HaruLog
 import de.shareui.haru.sdk.HaruSdk
 import de.shareui.haru.sdk.SdkManager
 import org.telegram.messenger.AndroidUtilities
+import org.telegram.messenger.ApplicationLoader
+import org.telegram.messenger.FileLoader
+import org.telegram.messenger.FileLog
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
 import org.telegram.messenger.Utilities
@@ -36,6 +42,7 @@ import org.telegram.ui.Components.ItemOptions
 import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.RecyclerListView
 import org.telegram.ui.Components.Switch
+import java.io.File
 class SdkActivity : BaseFragment() {
 
     companion object {
@@ -143,9 +150,47 @@ class SdkActivity : BaseFragment() {
 
     private fun showOptions(sdk: HaruSdk, anchor: View) {
         ItemOptions.makeOptions(this, anchor)
+            .add(R.drawable.msg_share, str(R.string.HaruSdkShare)) { shareSdk(sdk) }
             .add(R.drawable.msg_delete, str(R.string.HaruSdkDelete), true) { confirmDelete(sdk) }
             .setGravity(if (LocaleController.isRTL) Gravity.LEFT else Gravity.RIGHT)
             .show()
+    }
+
+    // copies the raw archive into the shared cache dir and hands it to the
+    // system share sheet; SdkManager keeps the original read-only in sdk/raw/
+    private fun shareSdk(sdk: HaruSdk) {
+        val activity = parentActivity ?: return
+        try {
+            val raw = SdkManager.rawFileFor(sdk.id)
+            if (!raw.isFile) {
+                BulletinFactory.of(this).createErrorBulletin(str(R.string.HaruSdkErrorShare)).show()
+                return
+            }
+            val name = FileLoader.fixFileName("${sdk.id}.harusdk")
+            val outFile = File(FileLoader.getDirectory(FileLoader.MEDIA_DIR_CACHE), name)
+            if (!AndroidUtilities.copyFile(raw, outFile)) {
+                BulletinFactory.of(this).createErrorBulletin(str(R.string.HaruSdkErrorShare)).show()
+                return
+            }
+
+            val intent = Intent(Intent.ACTION_SEND).apply { type = "application/octet-stream" }
+            if (Build.VERSION.SDK_INT >= 24) {
+                try {
+                    val uri = FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", outFile)
+                    intent.putExtra(Intent.EXTRA_STREAM, uri)
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: Exception) {
+                    FileLog.e(e)
+                    intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(outFile))
+                }
+            } else {
+                intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(outFile))
+            }
+            activity.startActivityForResult(Intent.createChooser(intent, str(R.string.HaruSdkShare)), 500)
+        } catch (e: Exception) {
+            FileLog.e(e)
+            BulletinFactory.of(this).createErrorBulletin(str(R.string.HaruSdkErrorShare)).show()
+        }
     }
 
     private fun confirmDelete(sdk: HaruSdk) {
@@ -464,6 +509,15 @@ private fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntere
     fragment.showDialog(dialog)
 }
 
+// relaunches the app so a freshly installed/updated sdk's dex gets loaded
+internal fun restartApp(fragment: BaseFragment) {
+    val activity = fragment.parentActivity ?: return
+    val intent = activity.packageManager.getLaunchIntentForPackage(activity.packageName)
+    activity.finishAffinity()
+    activity.startActivity(intent)
+    System.exit(0)
+}
+
 internal fun install(
     fragment: BaseFragment,
     uri: Uri,
@@ -491,7 +545,11 @@ internal fun install(
                         if (result.replaced) R.string.HaruSdkUpdated else R.string.HaruSdkInstalled,
                         result.sdk.name
                     )
-                    factory.createSimpleBulletin(R.raw.contact_check, text).show()
+                    factory.createSimpleBulletin(
+                        R.raw.contact_check,
+                        text,
+                        HaruLocale.getString(context, R.string.HaruSdkRestart)
+                    ) { restartApp(fragment) }.show()
                     // Freshly installed SDKs default to enabled, so load it right away.
                     if (SdkManager.isEnabled(result.sdk.id)) {
                         val error = SdkManager.start(result.sdk)
@@ -514,10 +572,15 @@ internal fun install(
                         SdkManager.Failure.NOT_AN_ARCHIVE -> R.string.HaruSdkErrorArchive
                         SdkManager.Failure.NO_MANIFEST -> R.string.HaruSdkErrorManifest
                         SdkManager.Failure.NO_DEX -> R.string.HaruSdkErrorDex
+                        SdkManager.Failure.NO_ENTRY_SIGNATURE -> R.string.SdkSourceError
                         SdkManager.Failure.IO -> R.string.HaruSdkErrorInstall
                     }
                     val text = HaruLocale.getString(context, resId)
                     val detail = result.detail?.takeIf { it.isNotBlank() }
+                    HaruLog.log(
+                        "sdk install failed: ${result.failure}${if (detail != null) " ($detail)" else ""}",
+                        HaruLog.Color.RED
+                    )
                     factory.createErrorBulletin(
                         if (detail != null) "$text\n$detail" else text
                     ).show()

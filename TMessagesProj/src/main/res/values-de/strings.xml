@@ -1428,5 +1428,8 @@
     <string name="HaruSdkPasswordInfo">Dieses Archiv ist verschlüsselt. Gib das Passwort ein, mit dem es gebaut wurde.</string>
     <string name="HaruSdkPasswordHint">Passwort</string>
     <string name="HaruSdkErrorPassword">Falsches Passwort. Versuche es erneut.</string>
-
+    <string name="HaruSdkShare">Teilen</string>
+    <string name="HaruSdkErrorShare">Fehler beim Senden der Datei</string>
+    <string name="HaruSdkRestart">Neustart</string>
+    <string name="SdkSourceError">Fehler. Uberprufen sie die protokolle</string>
 </resources>
