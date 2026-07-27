@@ -1,15 +1,9 @@
-package de.shareui.haru.Sdk
+package de.shareui.haru.sdk
 
 import java.io.File
 
-/**
- * An SDK unpacked into `{filesDir}/sdk/{id}/`.
- *
- * `haru.yml` is the manifest that ships inside the archive; it names the entry
- * [entryClass] and points at the metadata file (`metadata: metadata.yml` by
- * default). When that file is missing the metadata keys are read straight out
- * of `haru.yml` instead.
- */
+// haru.yml is the manifest shipped in the archive; it names the entry class
+// and points at the metadata file, default metadata.yml
 data class HaruSdk(
     val id: String,
     val name: String,
@@ -29,7 +23,6 @@ data class HaruSdk(
         const val HARU_YML = "haru.yml"
         const val DEFAULT_METADATA = "metadata.yml"
 
-        /** Reads the manifest pair out of [dir]; null when there is no usable `haru.yml`. */
         fun read(dir: File): HaruSdk? {
             val manifestFile = File(dir, HARU_YML)
             if (!manifestFile.isFile) return null
@@ -48,8 +41,7 @@ data class HaruSdk(
 
             return HaruSdk(
                 id = id,
-                // Without a declared name the full id is the honest title; the
-                // last segment alone ("harusdk") says nothing about the SDK.
+                // without a declared name, the full id is the honest title
                 name = MiniYaml.string(metadata, "name") ?: id,
                 version = MiniYaml.string(metadata, "version") ?: "",
                 state = MiniYaml.string(metadata, "state") ?: "",
@@ -62,9 +54,8 @@ data class HaruSdk(
             )
         }
 
-        /** Resolves `metadata:` from [manifest] relative to [dir]; null when it is absent. */
         private fun readMetadata(dir: File, manifest: Map<String, Any>): Map<String, Any>? {
-            // The archive is flat, so only the file name of the declared path survives packaging.
+            // the archive is flat, so only the file name of the declared path survives packaging
             val declared = MiniYaml.string(manifest, "metadata") ?: DEFAULT_METADATA
             val file = File(dir, File(declared).name)
             if (!file.isFile) return null
@@ -74,5 +65,22 @@ data class HaruSdk(
                 null
             }
         }
+
+        // builds an index entry straight from the extracted dir; rawPath/rawSha256
+        // are filled in by the caller once the raw archive has been stored
+        fun toIndexEntry(sdk: HaruSdk, rawPath: String, rawSha256: String): SdkIndexEntry = SdkIndexEntry(
+            id = sdk.id,
+            name = sdk.name,
+            version = sdk.version,
+            state = sdk.state,
+            author = sdk.author,
+            appVersion = sdk.appVersion,
+            source = sdk.source,
+            socials = sdk.socials,
+            entryClass = sdk.entryClass,
+            dirName = sdk.dir.name,
+            rawPath = rawPath,
+            rawSha256 = rawSha256
+        )
     }
 }

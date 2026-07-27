@@ -1,4 +1,4 @@
-package de.shareui.haru.Sdk
+package de.shareui.haru.sdk
 
 import android.content.Context
 import android.net.Uri
@@ -12,22 +12,16 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.lang.reflect.Modifier
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-/**
- * Installs, lists, toggles, deletes and loads Haru SDKs.
- *
- * An SDK ships as a zip (`*.harusdk`) holding `classes.dex`, `haru.yml` and the
- * metadata file. Installing unpacks it into `{filesDir}/sdk/{id}/`, so several
- * SDKs live side by side, each keyed by the `id` from its metadata.
- *
- * Loading goes through [DexClassLoader] with the app class loader as parent, so
- * an SDK compiled against the Telegram stubs resolves `org.telegram.*` against
- * the running app.
- */
+// installs, lists, toggles, deletes and loads haru sdks
+// an sdk ships as a zip (*.harusdk) with classes.dex, haru.yml and the metadata file
+// installing unpacks it into {filesDir}/sdk/{id}/, each sdk keyed by its metadata id
+// loading goes through DexClassLoader with the app class loader as parent
 object SdkManager {
 
     const val CLASSES_DEX = "classes.dex"
@@ -35,28 +29,27 @@ object SdkManager {
 
     private const val TAG = "HaruSdk"
     private const val ROOT_DIR = "sdk"
+    private const val RAW_DIR = "raw"
     private const val ODEX_DIR = "oat"
     private const val KEY_ENABLED_PREFIX = "sdk_enabled_"
     private const val STAGING_DIR = "haru_sdk_staging"
     private const val MAX_ENTRY_BYTES = 64L * 1024 * 1024
 
-    /** Names tried on the entry class when starting / stopping an SDK. */
+    // names tried on the entry class when starting / stopping an sdk
     private val START_METHODS = arrayOf("main", "init", "onLoad", "start")
     private val STOP_METHODS = arrayOf("stop", "onUnload", "destroy")
 
-    /** Class loaders of SDKs loaded in this process, keyed by SDK id. */
+    // class loaders of sdks loaded in this process, keyed by sdk id
     private val active = LinkedHashMap<String, ClassLoader>()
 
-    enum class Failure { UNREADABLE, NOT_AN_ARCHIVE, NO_MANIFEST, NO_DEX, IO }
+    enum class Failure { UNREADABLE, NOT_AN_ARCHIVE, NO_MANIFEST, NO_DEX, NO_ENTRY_SIGNATURE, IO }
 
     sealed class InstallResult {
         data class Success(val sdk: HaruSdk, val replaced: Boolean) : InstallResult()
         data class Error(val failure: Failure, val detail: String? = null) : InstallResult()
 
-        /**
-         * The archive is encrypted (`haru build -p ...`). [wrongPassword] tells a
-         * first ask apart from a retry after a rejected one.
-         */
+        // archive is encrypted (haru build -p ...); wrongPassword tells a first
+        // ask apart from a retry after a rejected one
         data class PasswordRequired(val wrongPassword: Boolean) : InstallResult()
     }
 
@@ -72,16 +65,53 @@ object SdkManager {
 
     fun dirFor(id: String): File = File(rootDir(), sanitizeId(id))
 
-    /** Everything currently unpacked, sorted by display name. */
-    fun list(): List<HaruSdk> {
-        val dirs = rootDir().listFiles() ?: return emptyList()
-        return dirs
-            .filter { it.isDirectory }
-            .mapNotNull { HaruSdk.read(it) }
-            .sortedBy { it.name.lowercase() }
+    private fun rawDir(): File {
+        val dir = File(rootDir(), RAW_DIR)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
     }
 
-    fun find(id: String): HaruSdk? = HaruSdk.read(dirFor(id))
+    fun rawFileFor(id: String): File = File(rawDir(), "${sanitizeId(id)}.harusdk")
+
+    // index.json is the source of truth; a dir that vanished or lost its
+    // manifest behind the app's back is dropped and the index rescanned
+    fun list(): List<HaruSdk> {
+        val root = rootDir()
+        val entries = SdkIndex.load(root)
+        val stale = entries.any { entry ->
+            val dir = File(root, entry.dirName)
+            HaruSdk.read(dir) == null
+        }
+        if (stale) {
+            return rescan()
+        }
+        return entries.map { it.toSdk(root) }.sortedBy { it.name.lowercase() }
+    }
+
+    fun find(id: String): HaruSdk? = list().firstOrNull { it.id == id }
+
+    // rebuilds index.json from whatever haru.yml manifests are actually on disk
+    private fun rescan(): List<HaruSdk> {
+        val root = rootDir()
+        val dirs = root.listFiles() ?: return emptyList()
+        val previous = SdkIndex.load(root)
+        val rebuilt = dirs
+            .filter { it.isDirectory && it.name != RAW_DIR }
+            .mapNotNull { dir -> HaruSdk.read(dir) }
+        val entries = rebuilt.map { sdk ->
+            val existing = previous.firstOrNull { it.id == sdk.id }
+            val raw = rawFileFor(sdk.id)
+            HaruSdk.toIndexEntry(
+                sdk,
+                rawPath = existing?.rawPath ?: if (raw.isFile) raw.absolutePath else "",
+                rawSha256 = existing?.rawSha256 ?: if (raw.isFile) sha256(raw) else ""
+            )
+        }
+        SdkIndex.save(root, entries)
+        return rebuilt.sortedBy { it.name.lowercase() }
+    }
 
     private fun prefs() = ApplicationLoader.applicationContext
         .getSharedPreferences(HaruLocale.PREFS_NAME, Context.MODE_PRIVATE)
@@ -92,18 +122,14 @@ object SdkManager {
         prefs().edit().putBoolean(KEY_ENABLED_PREFIX + id, enabled).apply()
     }
 
-    /** True while this SDK's dex is loaded in the current process. */
     fun isRunning(id: String): Boolean = active.containsKey(id)
 
     // endregion
 
     // region install / uninstall
 
-    /**
-     * Unpacks the archive behind [uri] and installs it. [password] is only used
-     * for archives built with `-p`; without it such an archive comes back as
-     * [InstallResult.PasswordRequired] so the caller can ask the user.
-     */
+    // password is only used for archives built with -p; without it such an
+    // archive comes back as PasswordRequired so the caller can ask the user
     fun install(context: Context, uri: Uri, password: String? = null): InstallResult {
         val cacheDir = context.cacheDir
         val archive = File(cacheDir, "haru_sdk_install.tmp")
@@ -146,7 +172,7 @@ object SdkManager {
                 if (extracted == 0) {
                     return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: no entries")
                 }
-                return finish(staging)
+                return finish(staging, archive)
             }
 
             var extracted = try {
@@ -176,7 +202,7 @@ object SdkManager {
                 return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "$copied bytes: $reason")
             }
 
-            return finish(staging)
+            return finish(staging, archive)
         } catch (e: Exception) {
             FileLog.e(e)
             return InstallResult.Error(Failure.IO, e.message)
@@ -186,19 +212,25 @@ object SdkManager {
         }
     }
 
-    /** Validates the unpacked [staging] copy and moves it into its own directory. */
-    private fun finish(staging: File): InstallResult {
+    private fun finish(staging: File, archive: File): InstallResult {
         val staged = HaruSdk.read(staging)
             ?: return InstallResult.Error(Failure.NO_MANIFEST)
         if (!File(staging, CLASSES_DEX).isFile) {
             return InstallResult.Error(Failure.NO_DEX)
         }
 
+        // packed here so validation and the final install share the same jar,
+        // instead of packing once to check and again after the move
+        packDexIntoJar(staging)
+        val signatureError = validateEntrySignature(staging, staged)
+        if (signatureError != null) {
+            return InstallResult.Error(Failure.NO_ENTRY_SIGNATURE, signatureError)
+        }
+
         val target = dirFor(staged.id)
         val replaced = target.exists()
-        // A reinstall replaces the whole directory. The copy already loaded in
-        // this process keeps its open dex until the app restarts, so give it
-        // its teardown hook and drop the loader.
+        // a reinstall replaces the whole directory; stop the loaded copy first
+        // since its dex stays open until the app restarts
         HaruSdk.read(target)?.let { stop(it) }
         active.remove(staged.id)
         target.deleteRecursively()
@@ -208,15 +240,68 @@ object SdkManager {
             staging.deleteRecursively()
         }
 
-        packDexIntoJar(target)
-
         val installed = HaruSdk.read(target)
             ?: return InstallResult.Error(Failure.NO_MANIFEST)
+
+        val raw = rawFileFor(installed.id)
+        archive.copyTo(raw, overwrite = true)
+        val hash = sha256(raw)
+        SdkIndex.upsert(rootDir(), HaruSdk.toIndexEntry(installed, raw.absolutePath, hash))
+
         SdkStates.dispatch(
             installed.id,
             if (replaced) SdkStates.Event.UPDATED else SdkStates.Event.INSTALLED
         )
         return InstallResult.Success(installed, replaced)
+    }
+
+    // loads the staged jar in isolation to check the entry class exposes a
+    // (Context, SdkStates.Self) method before the sdk is ever allowed to run;
+    // returns a concrete reason on failure, or null if the signature is found
+    private fun validateEntrySignature(staging: File, sdk: HaruSdk): String? {
+        val jar = File(staging, CLASSES_JAR)
+        val odex = File(staging.parentFile, "haru_sdk_validate_odex")
+        odex.deleteRecursively()
+        odex.mkdirs()
+        try {
+            val loader = try {
+                DexClassLoader(
+                    jar.absolutePath,
+                    odex.absolutePath,
+                    null,
+                    ApplicationLoader.applicationContext.classLoader
+                )
+            } catch (e: Throwable) {
+                return "cannot load classes.jar: ${e.message ?: e.javaClass.simpleName}"
+            }
+
+            val candidates = listOfNotNull(
+                loadClassOrNull(loader, sdk.entryClass),
+                loadClassOrNull(loader, sdk.entryClass + "Kt")
+            )
+            if (candidates.isEmpty()) {
+                return "entry class not found: ${sdk.entryClass}"
+            }
+
+            val requiredSignature = arrayOf<Class<*>>(Context::class.java, SdkStates.Self::class.java)
+            val hasSignature = candidates.any { clazz ->
+                START_METHODS.any { name ->
+                    try {
+                        clazz.getDeclaredMethod(name, *requiredSignature)
+                        true
+                    } catch (_: NoSuchMethodException) {
+                        false
+                    }
+                }
+            }
+            if (!hasSignature) {
+                val names = START_METHODS.joinToString("/")
+                return "${sdk.entryClass}: no $names(Context, SdkStates.Self)"
+            }
+            return null
+        } finally {
+            odex.deleteRecursively()
+        }
     }
 
     fun uninstall(sdk: HaruSdk): Boolean {
@@ -225,12 +310,13 @@ object SdkManager {
         prefs().edit().remove(KEY_ENABLED_PREFIX + sdk.id).apply()
         val removed = sdk.dir.deleteRecursively()
         if (removed) {
+            rawFileFor(sdk.id).delete()
+            SdkIndex.remove(rootDir(), sdk.id)
             SdkStates.dispatch(sdk.id, SdkStates.Event.UNINSTALLED)
         }
         return removed
     }
 
-    /** Unpacks [zip] into [target], refusing entries that would escape it. */
     private fun extract(zip: ZipFile, target: File): Int {
         var files = 0
         val entries = zip.entries()
@@ -246,7 +332,7 @@ object SdkManager {
         return files
     }
 
-    /** Same, for an archive encrypted with `haru build -p`. */
+    // for an archive encrypted with haru build -p
     private fun extract(zip: HaruZip.Reader, target: File, password: String?): Int {
         var files = 0
         for (entry in zip.entries) {
@@ -260,12 +346,12 @@ object SdkManager {
         return files
     }
 
-    /** Same, reading the archive as a stream instead of through its central directory. */
+    // reads the archive as a stream instead of through its central directory
     private fun extract(zip: ZipInputStream, target: File): Int {
         var files = 0
         while (true) {
             val entry = zip.nextEntry ?: break
-            // The stream stays open across entries, so it is handed over unclosed.
+            // stream stays open across entries, so it is handed over unclosed
             if (write(entry.name, entry.isDirectory, target) { it(zip) }) {
                 files++
             }
@@ -274,10 +360,7 @@ object SdkManager {
         return files
     }
 
-    /**
-     * Writes one entry named [name] under [target]; returns true when a file was
-     * created. [open] hands the entry's bytes to the given consumer.
-     */
+    // writes one entry under target, refusing entries that would escape it
     private inline fun write(
         name: String,
         isDirectory: Boolean,
@@ -312,11 +395,8 @@ object SdkManager {
         return true
     }
 
-    /**
-     * Wraps `classes.dex` into `classes.jar`. A raw dex is accepted by
-     * [DexClassLoader] only on some releases, a jar is accepted everywhere; and
-     * from Android 14 the file the loader opens has to be read-only.
-     */
+    // wraps classes.dex into classes.jar: a raw dex only loads on some releases,
+    // a jar loads everywhere, and android 14 requires the loaded file to be read-only
     private fun packDexIntoJar(dir: File) {
         val dex = File(dir, CLASSES_DEX)
         val jar = File(dir, CLASSES_JAR)
@@ -332,11 +412,24 @@ object SdkManager {
         jar.setReadOnly()
     }
 
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     // endregion
 
     // region loading
 
-    /** Loads every enabled SDK. Called once from `de.shareui.haru.Main` at app start. */
+    // called once from Main at app start
     fun initAll() {
         for (sdk in list()) {
             if (!isEnabled(sdk.id)) {
@@ -349,10 +442,6 @@ object SdkManager {
         }
     }
 
-    /**
-     * Loads [sdk]'s dex and calls its entry point. Returns the failure, or null
-     * on success (including when it was already running).
-     */
     fun start(sdk: HaruSdk): Throwable? {
         if (active.containsKey(sdk.id)) {
             return null
@@ -360,7 +449,7 @@ object SdkManager {
         return try {
             val jar = sdk.jarFile
             if (!jar.isFile) {
-                // Installed before jar packing existed, or the file went missing.
+                // installed before jar packing existed, or the file went missing
                 if (!sdk.dexFile.isFile) {
                     throw java.io.FileNotFoundException("${sdk.id}: no $CLASSES_DEX")
                 }
@@ -389,11 +478,7 @@ object SdkManager {
         }
     }
 
-    /**
-     * Calls the optional teardown hook and forgets the class loader. The dex
-     * itself stays mapped until the process restarts — Android has no unload —
-     * so the SDK is only fully gone after a restart.
-     */
+    // dex stays mapped until the process restarts, android has no unload
     fun stop(sdk: HaruSdk): Boolean {
         val loader = active.remove(sdk.id) ?: return false
         return try {
@@ -402,16 +487,11 @@ object SdkManager {
             FileLog.e("$TAG: ${sdk.id} failed to stop", e)
             false
         } finally {
-            // The loader is gone either way, so the SDK counts as stopped even
-            // when its own teardown hook threw.
+            // loader is gone either way, so the sdk counts as stopped even if teardown threw
             SdkStates.dispatch(sdk.id, SdkStates.Event.STOPPED)
         }
     }
 
-    /**
-     * Persists the flag and applies it right away: enabling loads the SDK now,
-     * disabling runs its teardown hook. Returns the start failure, if any.
-     */
     fun setEnabled(sdk: HaruSdk, enabled: Boolean): Throwable? {
         writeEnabled(sdk.id, enabled)
         SdkStates.dispatch(
@@ -426,11 +506,8 @@ object SdkManager {
         }
     }
 
-    /**
-     * Finds and calls the first matching entry point. Kotlin top-level `fun main()`
-     * in `Foo.kt` compiles to `FooKt.main()`, so the declared class is tried both
-     * as-is and with the `Kt` suffix; `Context` and no-arg signatures are accepted.
-     */
+    // kotlin top-level fun main() in Foo.kt compiles to FooKt.main(), so the
+    // declared class is tried both as-is and with the Kt suffix
     private fun invoke(
         loader: ClassLoader,
         sdk: HaruSdk,
@@ -447,28 +524,25 @@ object SdkManager {
         }
 
         val context = ApplicationLoader.applicationContext
-        val signatures = arrayOf(arrayOf<Class<*>>(Context::class.java), emptyArray())
+        val self = SdkStates.Self(sdk.id)
+        // install already rejects anything without this exact signature, so
+        // start() only ever needs to look for it
+        val signature = arrayOf<Class<*>>(Context::class.java, SdkStates.Self::class.java)
         for (clazz in candidates) {
             for (name in names) {
-                for (signature in signatures) {
-                    val method = try {
-                        clazz.getDeclaredMethod(name, *signature)
-                    } catch (_: NoSuchMethodException) {
-                        continue
-                    }
-                    method.isAccessible = true
-                    val target = if (Modifier.isStatic(method.modifiers)) {
-                        null
-                    } else {
-                        instanceOf(clazz) ?: continue
-                    }
-                    if (signature.isEmpty()) {
-                        method.invoke(target)
-                    } else {
-                        method.invoke(target, context)
-                    }
-                    return true
+                val method = try {
+                    clazz.getDeclaredMethod(name, *signature)
+                } catch (_: NoSuchMethodException) {
+                    continue
                 }
+                method.isAccessible = true
+                val target = if (Modifier.isStatic(method.modifiers)) {
+                    null
+                } else {
+                    instanceOf(clazz) ?: continue
+                }
+                method.invoke(target, context, self)
+                return true
             }
         }
 
@@ -484,7 +558,7 @@ object SdkManager {
         null
     }
 
-    /** Kotlin `object` exposes INSTANCE; otherwise fall back to a no-arg constructor. */
+    // kotlin object exposes INSTANCE, otherwise fall back to a no-arg constructor
     private fun instanceOf(clazz: Class<*>): Any? {
         try {
             val field = clazz.getDeclaredField("INSTANCE")
@@ -505,7 +579,7 @@ object SdkManager {
 
     // endregion
 
-    /** Keeps an id from reaching outside `{filesDir}/sdk/`. */
+    // keeps an id from reaching outside {filesDir}/sdk/
     private fun sanitizeId(id: String): String {
         val cleaned = id.map { if (it.isLetterOrDigit() || it == '.' || it == '_' || it == '-') it else '_' }
             .joinToString("")

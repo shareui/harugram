@@ -1,4 +1,4 @@
-package de.shareui.haru.Activities
+package de.shareui.haru.activities
 
 import android.content.Context
 import android.graphics.Typeface
@@ -27,17 +27,14 @@ import org.telegram.ui.Components.RecyclerListView
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-/**
- * Shows what [HaruLog] collected this session. Opened from [Debug]; the
- * "Verbose logging" switch there decides whether `debug` lines are listed.
- */
+// shows what HaruLog collected this session, opened from Debug
 class Logs : BaseFragment() {
 
     companion object {
         private const val MENU_COPY_ALL = 1
         private const val MENU_CLEAR = 2
 
-        /** Fixed pattern: a log timestamp is read, not localized. */
+        // fixed pattern: a log timestamp is read, not localized
         private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     }
 
@@ -141,7 +138,6 @@ class Logs : BaseFragment() {
         }
     }
 
-    /** Copies every listed line, timestamps included — same set the list shows. */
     private fun copyAll() {
         if (entries.isEmpty()) {
             return
@@ -188,12 +184,11 @@ class Logs : BaseFragment() {
         }
     }
 
-    /** `12:04:31.220  message`, the timestamp gray and the message in the entry's color. */
+    // "12:04:31.220  message", timestamp gray and message in the entry's color
     private inner class LogCell(context: Context) : TextView(context) {
 
         init {
-            // Without this the row is only as wide as its text, so the background
-            // stops mid-screen instead of running edge to edge.
+            // without this the row is only as wide as its text
             layoutParams = RecyclerView.LayoutParams(
                 RecyclerView.LayoutParams.MATCH_PARENT,
                 RecyclerView.LayoutParams.WRAP_CONTENT

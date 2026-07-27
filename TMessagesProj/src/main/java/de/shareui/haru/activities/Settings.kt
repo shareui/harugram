@@ -1,4 +1,4 @@
-package de.shareui.haru.Activities
+package de.shareui.haru.activities
 
 import android.app.Activity
 import android.content.Context
@@ -18,7 +18,7 @@ import android.widget.LinearLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
-import de.shareui.haru.Sdk.SdkManager
+import de.shareui.haru.sdk.SdkManager
 import org.telegram.messenger.AndroidUtilities
 import org.telegram.messenger.R
 import org.telegram.ui.ActionBar.ActionBar

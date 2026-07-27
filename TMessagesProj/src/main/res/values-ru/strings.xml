@@ -316,5 +316,8 @@
     <string name="HaruSdkPasswordInfo">Архив зашифрован. Введите пароль, с которым он был собран.</string>
     <string name="HaruSdkPasswordHint">Пароль</string>
     <string name="HaruSdkErrorPassword">Неверный пароль. Попробуйте ещё раз.</string>
-
+    <string name="HaruSdkShare">Поделиться</string>
+    <string name="HaruSdkErrorShare">Ошибка при отправке файла</string>
+    <string name="HaruSdkRestart">Перезапуск</string>
+    <string name="SdkSourceError">Не удалось установить SDK. Проверь логи</string>
 </resources>

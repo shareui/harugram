@@ -1,13 +1,8 @@
-package de.shareui.haru.Sdk
+package de.shareui.haru.sdk
 
-/**
- * Tiny YAML reader for `haru.yml` / `metadata.yml`.
- *
- * Only what those two files use is supported: flat `key: value` pairs and a
- * `key:` followed by indented `- item` entries. Values may be quoted. Anything
- * more exotic is ignored rather than failing the whole file — a broken line in
- * an SDK manifest should not make the SDK unlistable.
- */
+// tiny yaml reader for haru.yml / metadata.yml
+// only flat key: value pairs and key: with indented - item lists are supported
+// anything more exotic is ignored rather than failing the whole file
 object MiniYaml {
 
     fun parse(text: String): Map<String, Any> {
@@ -55,7 +50,7 @@ object MiniYaml {
         }
     }
 
-    /** Drops a trailing `# comment`, but not a `#` that sits inside a value or a quoted string. */
+    // drops a trailing # comment, but not a # inside a value or a quoted string
     private fun stripComment(line: String): String {
         var quote: Char? = null
         for (i in line.indices) {

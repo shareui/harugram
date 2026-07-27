@@ -11219,5 +11219,8 @@
     <string name="HaruSdkPasswordInfo">This archive is encrypted. Enter the password it was built with.</string>
     <string name="HaruSdkPasswordHint">Password</string>
     <string name="HaruSdkErrorPassword">Wrong password. Try again.</string>
-
+    <string name="HaruSdkShare">Share</string>
+    <string name="HaruSdkErrorShare">Error sending file</string>
+    <string name="HaruSdkRestart">Restart</string>
+    <string name="SdkSourceError">Installation failed. Check logs</string>
 </resources>
