@@ -1,4 +1,4 @@
-package de.shareui.haru.Sdk
+package de.shareui.haru.sdk
 
 import java.io.Closeable
 import java.io.File
@@ -11,24 +11,14 @@ import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * A small zip reader for archives `java.util.zip` refuses to open.
- *
- * `haru build -p aes256 <password>` encrypts the SDK with WinZip AES: entries
- * are stored under compression method 99 with the real method hidden in the
- * `0x9901` extra field, and no Android release can read that. Everything an SDK
- * archive actually uses is implemented here and nothing else — no zip64, no
- * split archives, no legacy ZipCrypto.
- *
- * Layout of an encrypted entry's data: `salt | 2 password check bytes |
- * ciphertext | 10 byte authentication code`. The key comes from
- * PBKDF2-HMAC-SHA1 over the password, the ciphertext is AES-CTR with a
- * little-endian counter starting at 1, and the authentication code is
- * HMAC-SHA1 of the ciphertext truncated to 10 bytes.
- */
+// small zip reader for archives java.util.zip refuses to open
+// haru build -p aes256 encrypts with winzip aes: method 99, real method hidden in the 0x9901 extra field
+// only what an sdk archive uses is implemented here, no zip64, no split archives, no legacy zipcrypto
+// encrypted entry layout: salt | 2 password check bytes | ciphertext | 10 byte auth code
+// key is pbkdf2-hmac-sha1, ciphertext is aes-ctr with a little-endian counter starting at 1
 object HaruZip {
 
-    /** The archive is encrypted and the given password does not open it. */
+    // archive is encrypted and the given password does not open it
     class WrongPasswordException(message: String) : IOException(message)
 
     private const val EOCD_SIGNATURE = 0x06054b50
@@ -44,30 +34,28 @@ object HaruZip {
     private const val PASSWORD_CHECK_BYTES = 2
     private const val AUTH_CODE_BYTES = 10
 
-    /** The comment is at most 64k, so the end record cannot start earlier. */
+    // comment is at most 64k, so the end record cannot start earlier
     private const val EOCD_SEARCH_BYTES = 66_000
 
     data class Entry(
         val name: String,
-        /** The real compression method; for AES entries it comes out of the extra field. */
+        // for aes entries the real method comes out of the extra field
         val method: Int,
         val compressedSize: Long,
         val encrypted: Boolean,
-        /** 1 = AES-128, 2 = AES-192, 3 = AES-256; 0 when the entry is not AES. */
+        // 1 = aes-128, 2 = aes-192, 3 = aes-256, 0 when not aes
         val aesStrength: Int,
         val localHeaderOffset: Long
     ) {
         val isDirectory: Boolean get() = name.endsWith("/") || name.endsWith("\\")
     }
 
-    /** True when any entry is encrypted. False for a plain or unreadable archive. */
     fun isEncrypted(file: File): Boolean = try {
         open(file)?.use { reader -> reader.entries.any { it.encrypted } } ?: false
     } catch (_: Exception) {
         false
     }
 
-    /** Parses the central directory; null when [file] is not a readable zip. */
     fun open(file: File): Reader? {
         val raf = RandomAccessFile(file, "r")
         return try {
@@ -89,11 +77,7 @@ object HaruZip {
 
         val isEncrypted: Boolean get() = entries.any { it.encrypted }
 
-        /**
-         * Opens [entry]'s decrypted, decompressed bytes. Throws
-         * [WrongPasswordException] when the password check fails, so a caller can
-         * ask again instead of reporting a broken archive.
-         */
+        // throws WrongPasswordException on a failed check, so the caller can ask again
         fun open(entry: Entry, password: String?): InputStream {
             val dataOffset = dataOffsetOf(entry)
             var raw: InputStream = RegionInputStream(file, dataOffset, entry.compressedSize)
@@ -115,7 +99,7 @@ object HaruZip {
             }
         }
 
-        /** Data starts past the local header, whose name and extra lengths may differ from the central one. */
+        // data starts past the local header, whose name/extra lengths may differ from the central one
         private fun dataOffsetOf(entry: Entry): Long {
             val header = ByteArray(30)
             file.seek(entry.localHeaderOffset)
@@ -241,7 +225,7 @@ object HaruZip {
         return entries
     }
 
-    /** Returns the AES strength and the real compression method from the `0x9901` field. */
+    // returns aes strength and real compression method from the 0x9901 field
     private fun findAesExtra(extra: ByteArray, start: Int, length: Int): Pair<Int, Int>? {
         var p = start
         val end = start + length
@@ -269,7 +253,7 @@ object HaruZip {
 
     // region crypto
 
-    /** PBKDF2-HMAC-SHA1, spelled out so the password is hashed as raw UTF-8 on every release. */
+    // pbkdf2-hmac-sha1, spelled out so the password is hashed as raw utf-8 on every release
     private fun pbkdf2(password: ByteArray, salt: ByteArray, iterations: Int, length: Int): ByteArray {
         if (password.isEmpty()) {
             throw WrongPasswordException("empty password")
@@ -306,11 +290,8 @@ object HaruZip {
         return out
     }
 
-    /**
-     * AES-CTR over the entry's ciphertext. WinZip counts blocks little-endian
-     * from 1, which no `Cipher` mode does, so the counter blocks are encrypted
-     * one by one in ECB and xored in.
-     */
+    // aes-ctr over the ciphertext: winzip counts blocks little-endian from 1,
+    // which no Cipher mode does, so counter blocks are encrypted one by one in ecb and xored in
     private class AesCtrInputStream(
         private val source: InputStream,
         private var remaining: Long,
@@ -362,7 +343,7 @@ object HaruZip {
             return read
         }
 
-        /** Compares the trailing authentication code; a mismatch means tampering or truncation. */
+        // compares the trailing auth code; a mismatch means tampering or truncation
         private fun verify() {
             if (verified) return
             verified = true
@@ -387,8 +368,7 @@ object HaruZip {
         }
 
         override fun close() {
-            // The inflater stops as soon as the deflate stream ends and may never
-            // ask for the byte that trips the check, so close is the reliable spot.
+            // inflater may stop before asking for the byte that trips the check
             try {
                 if (remaining <= 0L) verify()
             } finally {
@@ -399,7 +379,7 @@ object HaruZip {
 
     // endregion
 
-    /** Reads [length] bytes of [file] starting at [start], seeking on every read. */
+    // reads length bytes of file starting at start, seeking on every read
     private class RegionInputStream(
         private val file: RandomAccessFile,
         start: Long,

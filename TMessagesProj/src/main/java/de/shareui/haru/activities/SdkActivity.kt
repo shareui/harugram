@@ -1,4 +1,4 @@
-package de.shareui.haru.Activities
+package de.shareui.haru.activities
 
 import android.app.Activity
 import android.content.Context
@@ -19,8 +19,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import de.shareui.haru.HaruLocale
-import de.shareui.haru.Sdk.HaruSdk
-import de.shareui.haru.Sdk.SdkManager
+import de.shareui.haru.sdk.HaruSdk
+import de.shareui.haru.sdk.SdkManager
 import org.telegram.messenger.AndroidUtilities
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
@@ -36,12 +36,6 @@ import org.telegram.ui.Components.ItemOptions
 import org.telegram.ui.Components.LayoutHelper
 import org.telegram.ui.Components.RecyclerListView
 import org.telegram.ui.Components.Switch
-
-/**
- * List of installed SDKs. Each one is a container card carrying its metadata
- * and a switch; long press opens delete. Installing is available both here and
- * from [Settings].
- */
 class SdkActivity : BaseFragment() {
 
     companion object {
@@ -51,9 +45,7 @@ class SdkActivity : BaseFragment() {
 
     private var listView: RecyclerListView? = null
     private var listAdapter: ListAdapter? = null
-
     private var sdks: List<HaruSdk> = emptyList()
-
     private var infoRow = -1
     private var rowCount = 0
 
@@ -66,7 +58,6 @@ class SdkActivity : BaseFragment() {
     private fun reload() {
         sdks = SdkManager.list()
         rowCount = sdks.size
-        // Nothing to explain under a filled list; the empty state still needs a hint.
         infoRow = if (sdks.isEmpty()) rowCount++ else -1
     }
 
@@ -140,8 +131,6 @@ class SdkActivity : BaseFragment() {
         cell?.bind(sdk)
 
         if (error != null) {
-            // The flag is on but the dex refused to load — say so instead of
-            // leaving a switch that looks fine.
             BulletinFactory.of(this)
                 .createErrorBulletin(str(R.string.HaruSdkErrorStart, sdk.name))
                 .show()
@@ -266,7 +255,7 @@ class SdkActivity : BaseFragment() {
         }
     }
 
-    /** exteraGram-style container: metadata block on one side, switch on the other. */
+    // фауст ты ебанат
     private inner class SdkCell(context: Context) : FrameLayout(context) {
 
         private val idView: TextView
@@ -350,8 +339,6 @@ class SdkActivity : BaseFragment() {
         }
 
         fun bind(sdk: HaruSdk) {
-            // The id is what identifies an SDK; `name` is optional metadata most
-            // of them never declare, so the title carries the id itself.
             idView.text = sdk.id
             nameView.text = sdk.name
             // Only worth its own line when the metadata declares a real name.
@@ -360,7 +347,6 @@ class SdkActivity : BaseFragment() {
             switchView.setChecked(SdkManager.isEnabled(sdk.id), true)
         }
 
-        /** `by haru · v0.1.0 (alpha)`, skipping whatever the metadata leaves out. */
         private fun describe(sdk: HaruSdk): String {
             val parts = ArrayList<String>(3)
             parts.add(
@@ -388,11 +374,6 @@ class SdkActivity : BaseFragment() {
     }
 }
 
-/**
- * Asks for the archive password, then hands it to [onEntered]. Shown when the
- * SDK was built with `haru build -p ...`; a rejected password reopens the same
- * dialog with the error in place of the hint.
- */
 private fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntered: (String) -> Unit) {
     val context = fragment.context ?: fragment.parentActivity ?: return
     val resourcesProvider = fragment.resourceProvider
@@ -483,10 +464,6 @@ private fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntere
     fragment.showDialog(dialog)
 }
 
-/**
- * Installs the picked archive off the main thread and reports the outcome.
- * Shared by [SdkActivity] and [Settings], which both offer the install button.
- */
 internal fun install(
     fragment: BaseFragment,
     uri: Uri,
@@ -539,8 +516,6 @@ internal fun install(
                         SdkManager.Failure.NO_DEX -> R.string.HaruSdkErrorDex
                         SdkManager.Failure.IO -> R.string.HaruSdkErrorInstall
                     }
-                    // The detail carries what actually went wrong (empty stream,
-                    // zip error, ...) — without it these failures are unreportable.
                     val text = HaruLocale.getString(context, resId)
                     val detail = result.detail?.takeIf { it.isNotBlank() }
                     factory.createErrorBulletin(

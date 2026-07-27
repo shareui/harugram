@@ -1,4 +1,4 @@
-package de.shareui.haru.Activities
+package de.shareui.haru.activities
 
 import android.content.Context
 import android.view.View

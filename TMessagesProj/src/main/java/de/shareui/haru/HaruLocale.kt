@@ -42,13 +42,12 @@ object HaruLocale {
         prefs().edit().putBoolean(KEY_VERBOSE_LOGGING, enabled).apply()
     }
 
-    /** Fixed brand label — not from LocaleController (cloud packs still say Telegram). */
+    // not from LocaleController, cloud packs still say Telegram
     const val BRAND_NAME = "Haru"
 
     @JvmStatic
     fun getBrandName(): String = BRAND_NAME
 
-    /** Show peer ID in profile; enabled by default. */
     @JvmStatic
     fun isShowId(): Boolean =
         prefs().getBoolean(KEY_SHOW_ID, true)
@@ -58,10 +57,7 @@ object HaruLocale {
         prefs().edit().putBoolean(KEY_SHOW_ID, enabled).apply()
     }
 
-    /**
-     * Separator used when grouping peer IDs (default `.`).
-     * Empty string means no grouping (raw digits).
-     */
+    // empty string means no grouping (raw digits)
     @JvmStatic
     fun getIdSeparator(): String {
         val p = prefs()
@@ -76,7 +72,6 @@ object HaruLocale {
         prefs().edit().putString(KEY_ID_SEPARATOR, separator).apply()
     }
 
-    /** Groups digits with [getIdSeparator]; empty separator → plain id. */
     @JvmStatic
     fun formatIdDotted(id: Long): String {
         val sep = getIdSeparator()
@@ -86,7 +81,7 @@ object HaruLocale {
         if (sep.length == 1) {
             return LocaleController.formatNumber(id, sep[0])
         }
-        // Multi-char separators: group with a placeholder then replace.
+        // multi-char separator: group with a placeholder, then replace
         return LocaleController.formatNumber(id, '\u0001').replace("\u0001", sep)
     }
 
@@ -111,15 +106,10 @@ object HaruLocale {
         return photo.dc_id
     }
 
-    // фауст иди нахуй
-    /** Primary line: `id: 400.216.230` */
     @JvmStatic
     fun buildIdPrimary(context: Context, id: Long): String =
         getString(context, R.string.HaruIdPrefix) + " " + formatIdDotted(id)
 
-    /**
-     * Secondary (gray) line: `(9, DC2)` or `(9)` when [dcId] is 0.
-     */
     @JvmStatic
     fun buildIdMeta(context: Context, id: Long, dcId: Int): String {
         val digits = idDigitCount(id)
@@ -130,7 +120,6 @@ object HaruLocale {
         }
     }
 
-    /** Resolved language used for Haru UI (always en/ru/de). */
     fun getResolvedLanguage(): String {
         val saved = getSavedLanguage()
         if (saved != LANG_AUTO && saved in supported) {

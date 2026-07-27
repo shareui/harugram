@@ -1,4 +1,4 @@
-package de.shareui.haru.Activities
+package de.shareui.haru.activities
 
 import android.content.Context
 import android.content.pm.PackageManager
@@ -19,18 +19,8 @@ import org.telegram.messenger.R
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Components.LayoutHelper
 
-// красавчик фауст хуйни навайбкодил
-
-/**
- * Full-width Haru branding header for Preferences.
- *
- * Structure: vertical [LinearLayout]
- *   - app icon (rounded square, no elevation/border)
- *   - brand name
- *   - version
- *
- * Note: do NOT use R.mipmap.ic_launcher — AdaptiveIconDrawable paints as a circle.
- */
+// full-width haru branding header for Preferences: icon, brand name, version
+// do not use R.mipmap.ic_launcher, AdaptiveIconDrawable paints it as a circle
 class HaruAboutCell(context: Context) : LinearLayout(context) {
 
     private val nameView: TextView

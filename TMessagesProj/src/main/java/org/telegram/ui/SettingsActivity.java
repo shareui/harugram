@@ -840,7 +840,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 presentSettingFragment(new LanguageSelectActivity());
                 break;
             case 100:
-                presentSettingFragment(new de.shareui.haru.Activities.Preferences());
+                presentSettingFragment(new de.shareui.haru.activities.Preferences());
                 break;
 
             case 11:
