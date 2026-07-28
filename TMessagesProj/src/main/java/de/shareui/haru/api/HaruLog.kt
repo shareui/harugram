@@ -9,6 +9,7 @@ import android.util.Log as AndroidLog
 // entries are in-memory only and lost when the process dies
 object HaruLog {
 
+    // default max entries limit if prefs is missing
     const val MAX_ENTRIES = 500
 
     private const val TAG = "Haru"
@@ -45,7 +46,8 @@ object HaruLog {
         synchronized(entries) {
             entries.add(entry)
             // drop from the front so the newest lines always survive
-            while (entries.size > MAX_ENTRIES) {
+            val limit = de.shareui.haru.HaruLocale.getLogMaxLines()
+            while (entries.size > limit) {
                 entries.removeAt(0)
             }
         }
@@ -87,4 +89,18 @@ object HaruLog {
             }
         }
     }
+
+    class Context internal constructor(private val prefix: String) {
+        @JvmOverloads
+        fun log(text: String, color: Color = Color.DEFAULT, debug: Boolean = false) {
+            HaruLog.log("$prefix: $text", color, debug)
+        }
+
+        fun log(text: String, color: String, debug: Boolean) {
+            HaruLog.log("$prefix: $text", color, debug)
+        }
+    }
+
+    @JvmField
+    val App = Context("Haru App")
 }

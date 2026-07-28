@@ -5,8 +5,8 @@ import android.net.Uri
 import dalvik.system.DexClassLoader
 import de.shareui.haru.HaruLocale
 import de.shareui.haru.api.SdkStates
+import de.shareui.haru.api.HaruLog
 import org.telegram.messenger.ApplicationLoader
-import org.telegram.messenger.FileLog
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -140,7 +140,7 @@ object SdkManager {
             val input = try {
                 context.contentResolver.openInputStream(uri)
             } catch (e: Exception) {
-                FileLog.e(e)
+                HaruLog.App.log(e.toString(), HaruLog.Color.RED)
                 null
             } ?: return InstallResult.Error(Failure.UNREADABLE)
 
@@ -166,7 +166,7 @@ object SdkManager {
                 } catch (e: HaruZip.WrongPasswordException) {
                     return InstallResult.PasswordRequired(wrongPassword = true)
                 } catch (e: Exception) {
-                    FileLog.e("$TAG: cannot decrypt $archive", e)
+                    HaruLog.App.log("cannot decrypt $archive: $e", HaruLog.Color.RED)
                     return InstallResult.Error(Failure.NOT_AN_ARCHIVE, e.message)
                 }
                 if (extracted == 0) {
@@ -178,7 +178,7 @@ object SdkManager {
             var extracted = try {
                 ZipFile(archive).use { zip -> extract(zip, staging) }
             } catch (e: Exception) {
-                FileLog.e("$TAG: $archive ($copied bytes) is not readable as a zip", e)
+                HaruLog.App.log("$archive ($copied bytes) is not readable as a zip: $e", HaruLog.Color.RED)
                 zipError = e
                 0
             }
@@ -191,7 +191,7 @@ object SdkManager {
                 extracted = try {
                     ZipInputStream(FileInputStream(archive)).use { zip -> extract(zip, staging) }
                 } catch (e: Exception) {
-                    FileLog.e("$TAG: streaming read of $archive failed", e)
+                    HaruLog.App.log("streaming read of $archive failed: $e", HaruLog.Color.RED)
                     if (zipError == null) zipError = e
                     0
                 }
@@ -204,7 +204,67 @@ object SdkManager {
 
             return finish(staging, archive)
         } catch (e: Exception) {
-            FileLog.e(e)
+            HaruLog.App.log(e.toString(), HaruLog.Color.RED)
+            return InstallResult.Error(Failure.IO, e.message)
+        } finally {
+            archive.delete()
+            staging.deleteRecursively()
+        }
+    }
+
+    // never peek long at 3am
+    fun peek(context: Context, uri: Uri, password: String? = null): InstallResult {
+        val cacheDir = context.cacheDir
+        val archive = File(cacheDir, "haru_sdk_peek.tmp")
+        val staging = File(cacheDir, "${STAGING_DIR}_peek")
+        try {
+            val input = try {
+                context.contentResolver.openInputStream(uri)
+            } catch (e: Exception) {
+                HaruLog.App.log(e.toString(), HaruLog.Color.RED)
+                null
+            } ?: return InstallResult.Error(Failure.UNREADABLE)
+
+            val copied = input.use { s -> FileOutputStream(archive).use { t -> s.copyTo(t) } }
+            if (copied == 0L) return InstallResult.Error(Failure.UNREADABLE, "file is empty")
+
+            staging.deleteRecursively()
+            staging.mkdirs()
+
+            if (HaruZip.isEncrypted(archive)) {
+                if (password.isNullOrEmpty()) return InstallResult.PasswordRequired(wrongPassword = false)
+                val extracted = try {
+                    HaruZip.open(archive)?.use { zip -> extract(zip, staging, password) } ?: 0
+                } catch (e: HaruZip.WrongPasswordException) {
+                    return InstallResult.PasswordRequired(wrongPassword = true)
+                } catch (e: Exception) {
+                    HaruLog.App.log("peek: cannot decrypt: $e", HaruLog.Color.RED)
+                    return InstallResult.Error(Failure.NOT_AN_ARCHIVE, e.message)
+                }
+                if (extracted == 0) return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "no entries")
+            } else {
+                var extracted = try {
+                    ZipFile(archive).use { zip -> extract(zip, staging) }
+                } catch (e: Exception) {
+                    0
+                }
+                if (extracted == 0) {
+                    staging.deleteRecursively(); staging.mkdirs()
+                    extracted = try {
+                        ZipInputStream(FileInputStream(archive)).use { zip -> extract(zip, staging) }
+                    } catch (e: Exception) { 0 }
+                }
+                if (extracted == 0) return InstallResult.Error(Failure.NOT_AN_ARCHIVE, "no entries")
+            }
+
+            val sdk = HaruSdk.read(staging)
+                ?: return InstallResult.Error(Failure.NO_MANIFEST)
+            if (!File(staging, CLASSES_DEX).isFile)
+                return InstallResult.Error(Failure.NO_DEX)
+
+            return InstallResult.Success(sdk, replaced = find(sdk.id) != null)
+        } catch (e: Exception) {
+            HaruLog.App.log("peek failed: $e", HaruLog.Color.RED)
             return InstallResult.Error(Failure.IO, e.message)
         } finally {
             archive.delete()
@@ -437,7 +497,7 @@ object SdkManager {
             }
             val error = start(sdk)
             if (error != null) {
-                FileLog.e("$TAG: failed to start ${sdk.id}", error)
+                HaruLog.App.log("failed to start ${sdk.id}: $error", HaruLog.Color.RED)
             }
         }
     }
@@ -469,7 +529,7 @@ object SdkManager {
             )
             invoke(loader, sdk, START_METHODS, required = true)
             active[sdk.id] = loader
-            FileLog.d("$TAG: started ${sdk.id} v${sdk.version}")
+            HaruLog.App.log("started ${sdk.id} v${sdk.version}", debug = true)
             SdkStates.dispatch(sdk.id, SdkStates.Event.STARTED)
             null
         } catch (e: Throwable) {
@@ -484,7 +544,7 @@ object SdkManager {
         return try {
             invoke(loader, sdk, STOP_METHODS, required = false)
         } catch (e: Throwable) {
-            FileLog.e("$TAG: ${sdk.id} failed to stop", e)
+            HaruLog.App.log("${sdk.id} failed to stop: $e", HaruLog.Color.RED)
             false
         } finally {
             // loader is gone either way, so the sdk counts as stopped even if teardown threw

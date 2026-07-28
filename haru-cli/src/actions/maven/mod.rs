@@ -18,7 +18,7 @@ pub fn resolve(logger: &mut Logger) -> Result<Vec<ResolvedLibrary>, Error> {
 	let Some(loaded) = manifest::load()? else {
 		return Ok(Vec::new());
 	};
-	if loaded.libraries.is_empty() {
+	if loaded.libraries.is_empty() && loaded.stub_libraries.is_empty() {
 		return Ok(Vec::new());
 	}
 	resolve::resolve(&loaded, logger)

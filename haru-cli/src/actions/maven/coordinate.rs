@@ -36,6 +36,8 @@ pub struct ResolvedCoordinate {
 }
 
 impl ResolvedCoordinate {
+	// not called by current resolution logic, kept as the natural ResolvedCoordinate -> Coordinate conversion
+	#[allow(dead_code)]
 	pub fn coordinate(&self) -> Coordinate {
 		Coordinate { group_id: self.group_id.clone(), artifact_id: self.artifact_id.clone() }
 	}

@@ -67,7 +67,13 @@ class Logs : BaseFragment() {
 
     private fun reload() {
         val verbose = HaruLocale.isVerboseLogging()
-        entries = HaruLog.entries().filter { verbose || !it.debug }
+        val showApp = HaruLocale.isShowAppLogs()
+        val showSdk = HaruLocale.isShowSdkLogs()
+        entries = HaruLog.entries().filter { entry ->
+            val isApp = entry.text.startsWith("Haru App:")
+            val matchesSource = if (isApp) showApp else showSdk
+            matchesSource && (verbose || !entry.debug)
+        }
         rowCount = entries.size
         emptyRow = if (entries.isEmpty()) rowCount++ else -1
     }
@@ -210,15 +216,17 @@ class Logs : BaseFragment() {
         }
 
         fun bind(entry: HaruLog.Entry) {
-            val stamp = timeFormat.format(entry.time)
             val builder = SpannableStringBuilder()
-            builder.append(stamp).append("  ")
-            builder.setSpan(
-                ForegroundColorSpan(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2)),
-                0,
-                builder.length,
-                SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+            if (HaruLocale.isShowLogTime()) {
+                val stamp = timeFormat.format(entry.time)
+                builder.append(stamp).append("  ")
+                builder.setSpan(
+                    ForegroundColorSpan(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2)),
+                    0,
+                    stamp.length + 2,
+                    SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
             builder.append(entry.text)
             text = builder
             setTextColor(colorOf(entry.color))

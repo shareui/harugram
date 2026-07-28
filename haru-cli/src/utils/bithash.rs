@@ -1,6 +1,3 @@
-// unused for now, reserved for the build cache
-#![allow(dead_code)]
-
 use std::ffi::CString;
 use std::os::raw::{c_int, c_void};
 
@@ -28,6 +25,7 @@ unsafe extern "C" {
 	fn bitHash_version() -> *const i8;
 }
 
+#[allow(dead_code)]
 pub fn oneshot(data: &[u8], seed: u64) -> u64 {
 	unsafe { bitHash_oneshot(data.as_ptr().cast(), data.len(), seed) }
 }
@@ -54,7 +52,8 @@ impl Hasher {
 
 #[derive(Debug)]
 pub enum Error {
-	InvalidPath(String),
+	// constructed on a NUL byte in the path, but no caller currently reads the message back out
+	InvalidPath(#[allow(dead_code)] String),
 	Native,
 }
 
@@ -70,6 +69,7 @@ pub fn hash_file(path: &str, seed: u64) -> Result<u64, Error> {
 	Ok(out_hash)
 }
 
+#[allow(dead_code)]
 pub fn files_equal(path_a: &str, path_b: &str) -> Result<bool, Error> {
 	let c_path_a = CString::new(path_a).map_err(|_| Error::InvalidPath(path_a.to_string()))?;
 	let c_path_b = CString::new(path_b).map_err(|_| Error::InvalidPath(path_b.to_string()))?;
@@ -83,6 +83,7 @@ pub fn files_equal(path_a: &str, path_b: &str) -> Result<bool, Error> {
 	}
 }
 
+#[allow(dead_code)]
 pub fn version() -> &'static str {
 	unsafe {
 		let ptr = bitHash_version();

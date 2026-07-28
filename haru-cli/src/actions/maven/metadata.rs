@@ -10,7 +10,11 @@ struct MavenMetadata {
 
 #[derive(Debug, Deserialize)]
 struct Versioning {
+	// not read by the resolution path currently in use (parse_all_versions), only by the
+	// alternate parse_release_version strategy kept below
+	#[allow(dead_code)]
 	release: Option<String>,
+	#[allow(dead_code)]
 	latest: Option<String>,
 	versions: Option<Versions>,
 }
@@ -21,6 +25,9 @@ struct Versions {
 	version: Vec<String>,
 }
 
+// alternate resolution strategy (prefer <release>/<latest>, fall back to the highest listed
+// version) not wired into resolve.rs, which currently always resolves "latest" via parse_all_versions
+#[allow(dead_code)]
 pub fn parse_release_version(xml: &str, coordinate_label: &str) -> Result<Option<String>, Error> {
 	let metadata: MavenMetadata =
 		quick_xml::de::from_str(xml).map_err(|err| Error::MetadataInvalid { coordinate: coordinate_label.to_string(), reason: err.to_string() })?;

@@ -13,7 +13,8 @@ checkAcrossAllRepos: true
 
 # versions mirror TMessagesProj/build.gradle: the stubs are the sources of that exact app build,
 # so an unpinned "newest" resolve links them against APIs they were never written for
-libraries:
+
+stubs-libs:
     - androidx.core:core:==1.16.0
     - androidx.annotation:annotation:==1.9.1
     - androidx.palette:palette:==1.0.0

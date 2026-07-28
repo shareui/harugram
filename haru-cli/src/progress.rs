@@ -64,6 +64,8 @@ impl Logger {
 		self.bar.log_line(message);
 	}
 
+	// non-awaiting counterpart to print_prompt_awaiting, not currently called by any prompt site
+	#[allow(dead_code)]
 	pub fn print_prompt(&self, message: &str) {
 		self.bar.clear_and_print(message);
 	}
@@ -226,6 +228,8 @@ impl ProgressBar {
 		self.render();
 	}
 
+	// only caller is Logger::print_prompt
+	#[allow(dead_code)]
 	fn clear_and_print(&self, message: &str) {
 		clear_line();
 		println!("{message}");

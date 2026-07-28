@@ -12,6 +12,9 @@ pub struct Manifest {
 	pub transit: bool,
 	pub check_across_all_repos: bool,
 	pub libraries: Vec<(Coordinate, Constraint)>,
+	// resolved the same way as libraries, but never bundled into the dex: classpath stubs only,
+	// for classes the host already ships at runtime
+	pub stub_libraries: Vec<(Coordinate, Constraint)>,
 	pub trust_system: bool,
 	pub trusted: Vec<ResolvedCoordinate>,
 }
@@ -33,13 +36,18 @@ pub fn load() -> Result<Option<Manifest>, Error> {
 		.map(|raw| coordinate::parse_library_entry(raw))
 		.collect::<Result<Vec<_>, _>>()?;
 
+	let stub_libraries = read_string_array(&root, "stubs-libs")
+		.iter()
+		.map(|raw| coordinate::parse_library_entry(raw))
+		.collect::<Result<Vec<_>, _>>()?;
+
 	let trusted = read_string_array(&root, "trusted")
 		.iter()
 		.filter(|raw| raw.as_str() != "None")
 		.map(|raw| coordinate::parse_trusted_entry(raw))
 		.collect::<Result<Vec<_>, _>>()?;
 
-	Ok(Some(Manifest { sources, transit, check_across_all_repos, libraries, trust_system, trusted }))
+	Ok(Some(Manifest { sources, transit, check_across_all_repos, libraries, stub_libraries, trust_system, trusted }))
 }
 
 fn read_string_array(root: &Value, field: &str) -> Vec<String> {
