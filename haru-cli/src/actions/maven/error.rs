@@ -1,3 +1,5 @@
+// some variants are not constructed yet by current call sites, kept for error taxonomy completeness
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum Error {
 	MavenYmlNotFound,

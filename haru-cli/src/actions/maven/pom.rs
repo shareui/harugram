@@ -53,14 +53,20 @@ pub struct RawDependency {
 	pub version: Option<String>,
 	pub scope: Option<String>,
 	pub optional: Option<String>,
+	// deserialized from <type>, not yet consulted by dependency filtering
+	#[allow(dead_code)]
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
 }
 
 // pom after property substitution and parent inheritance have been applied
 pub struct ResolvedPom {
+	// not read by callers, who already track the coordinate separately; kept for completeness
+	#[allow(dead_code)]
 	pub group_id: String,
+	#[allow(dead_code)]
 	pub artifact_id: String,
+	#[allow(dead_code)]
 	pub version: String,
 	pub packaging: String,
 	pub properties: HashMap<String, String>,

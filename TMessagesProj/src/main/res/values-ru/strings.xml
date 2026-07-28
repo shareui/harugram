@@ -319,5 +319,21 @@
     <string name="HaruSdkShare">Поделиться</string>
     <string name="HaruSdkErrorShare">Ошибка при отправке файла</string>
     <string name="HaruSdkRestart">Перезапуск</string>
+    <string name="HaruSdkInstallTitle">Установка SDK</string>
+    <string name="HaruSdkFieldPackage">Пакет:</string>
+    <string name="HaruSdkFieldVersion">Версия:</string>
+    <string name="HaruSdkFieldAuthor">Автор:</string>
+    <string name="HaruSdkFieldApp">Приложение:</string>
     <string name="SdkSourceError">Не удалось установить SDK. Проверь логи</string>
+    <string name="HaruLogStorage">Куда сохранять логи</string>
+    <string name="HaruLogStorageFile">В файл</string>
+    <string name="HaruLogStorageMemory">В память</string>
+    <string name="HaruLogMaxLines">Макс. количество строк</string>
+    <string name="HaruLogShowApp">Логи приложения</string>
+    <string name="HaruLogShowSdk">Логи SDK</string>
+    <string name="HaruLogShowTime">Отображать время</string>
+    <string name="HaruLogDuplicateLogcat">Дублировать в Logcat</string>
+    <string name="HaruLogDisplay">Отображение логов</string>
+    <string name="HaruInstall">Установить</string>
+    <string name="Close">Закрыть</string>
 </resources>

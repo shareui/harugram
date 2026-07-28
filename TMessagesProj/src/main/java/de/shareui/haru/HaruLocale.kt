@@ -42,6 +42,35 @@ object HaruLocale {
         prefs().edit().putBoolean(KEY_VERBOSE_LOGGING, enabled).apply()
     }
 
+    const val KEY_LOG_STORAGE = "haru_log_storage"
+    const val KEY_LOG_MAX_LINES = "haru_log_max_lines"
+    const val KEY_LOG_SHOW_APP = "haru_log_show_app"
+    const val KEY_LOG_SHOW_SDK = "haru_log_show_sdk"
+    const val KEY_LOG_SHOW_TIME = "haru_log_show_time"
+
+    const val LOG_STORAGE_FILE = 0
+    const val LOG_STORAGE_MEMORY = 1
+
+    fun getLogStorage(): Int = prefs().getInt(KEY_LOG_STORAGE, LOG_STORAGE_FILE)
+    fun setLogStorage(value: Int) { prefs().edit().putInt(KEY_LOG_STORAGE, value).apply() }
+
+    fun getLogMaxLines(): Int = prefs().getInt(KEY_LOG_MAX_LINES, 500)
+    fun setLogMaxLines(value: Int) { prefs().edit().putInt(KEY_LOG_MAX_LINES, value).apply() }
+
+    fun isShowAppLogs(): Boolean = prefs().getBoolean(KEY_LOG_SHOW_APP, true)
+    fun setShowAppLogs(value: Boolean) { prefs().edit().putBoolean(KEY_LOG_SHOW_APP, value).apply() }
+
+    fun isShowSdkLogs(): Boolean = prefs().getBoolean(KEY_LOG_SHOW_SDK, true)
+    fun setShowSdkLogs(value: Boolean) { prefs().edit().putBoolean(KEY_LOG_SHOW_SDK, value).apply() }
+
+    fun isShowLogTime(): Boolean = prefs().getBoolean(KEY_LOG_SHOW_TIME, true)
+    fun setShowLogTime(value: Boolean) { prefs().edit().putBoolean(KEY_LOG_SHOW_TIME, value).apply() }
+
+    const val KEY_LOG_DUPLICATE_LOGCAT = "haru_log_duplicate_logcat"
+
+    fun isDuplicateToLogcat(): Boolean = prefs().getBoolean(KEY_LOG_DUPLICATE_LOGCAT, false)
+    fun setDuplicateToLogcat(value: Boolean) { prefs().edit().putBoolean(KEY_LOG_DUPLICATE_LOGCAT, value).apply() }
+
     // not from LocaleController, cloud packs still say Telegram
     const val BRAND_NAME = "Haru"
 

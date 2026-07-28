@@ -11223,4 +11223,19 @@
     <string name="HaruSdkErrorShare">Error sending file</string>
     <string name="HaruSdkRestart">Restart</string>
     <string name="SdkSourceError">Installation failed. Check logs</string>
+    <string name="HaruSdkInstallTitle">Install SDK</string>
+    <string name="HaruSdkFieldPackage">Package:</string>
+    <string name="HaruSdkFieldVersion">Version:</string>
+    <string name="HaruSdkFieldAuthor">Author:</string>
+    <string name="HaruSdkFieldApp">App version:</string>
+    <string name="HaruLogStorage">Save logs to</string>
+    <string name="HaruLogStorageFile">File</string>
+    <string name="HaruLogStorageMemory">Memory</string>
+    <string name="HaruLogMaxLines">Max log lines</string>
+    <string name="HaruLogShowApp">App logs</string>
+    <string name="HaruLogShowSdk">SDK logs</string>
+    <string name="HaruLogShowTime">Show time</string>
+    <string name="HaruLogDuplicateLogcat">Duplicate to Logcat</string>
+    <string name="HaruLogDisplay">Log display</string>
+    <string name="HaruInstall">Install</string>
 </resources>

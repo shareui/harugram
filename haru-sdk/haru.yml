@@ -12,8 +12,8 @@ include:
   - "*.kt"
   # - "*.java"
 
-static-libs:
-  - ./libs/kotlin-stdlib.jar
+# static-libs:
+#  - ./libs/kotlin-stdlib.jar
 
 stubs:
   - ../TMessagesProj/src/main/java/|../TMessagesProj/src/main/res|../TMessagesProj/build.gradle|../gradle.properties # пиздец

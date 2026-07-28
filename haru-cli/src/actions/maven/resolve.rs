@@ -8,8 +8,13 @@ use crate::actions::maven::{cache, hash, repo, trust};
 use crate::progress::Logger;
 
 pub struct ResolvedLibrary {
+	// not read by the current caller (build.rs only takes jar_path), kept as public API context
+	#[allow(dead_code)]
 	pub coordinate: ResolvedCoordinate,
 	pub jar_path: Option<String>,
+	// true when this came from stubs-libs (or transitively from one): classpath resolution only,
+	// never a candidate for dexing into the output
+	pub is_stub: bool,
 }
 
 struct QueueItem {
@@ -21,6 +26,8 @@ struct QueueItem {
 	// resolves to whatever is newest, so it may seed a coordinate nobody else asked for but must
 	// never outrank a version that was actually named somewhere
 	version_guessed: bool,
+	// true when this item traces back to stubs-libs rather than libraries
+	is_stub: bool,
 }
 
 struct PomCache {
@@ -77,6 +84,7 @@ struct Selection {
 	effective_pom: ResolvedPom,
 	source: String,
 	required_by: Option<ResolvedCoordinate>,
+	is_stub: bool,
 }
 
 fn resolve_queue(manifest: &Manifest, index: &mut cache::Index, pom_cache: &mut PomCache, logger: &mut Logger) -> Result<Vec<ResolvedLibrary>, Error> {
@@ -88,7 +96,7 @@ fn resolve_queue(manifest: &Manifest, index: &mut cache::Index, pom_cache: &mut 
 
 	let mut resolved_libraries: Vec<ResolvedLibrary> = Vec::new();
 	for selection in selections {
-		let Selection { resolved, effective_pom, source, required_by } = selection;
+		let Selection { resolved, effective_pom, source, required_by, is_stub } = selection;
 
 		if let Some(dependency) = &required_by {
 			if !trusted.contains(&resolved) {
@@ -107,7 +115,7 @@ fn resolve_queue(manifest: &Manifest, index: &mut cache::Index, pom_cache: &mut 
 
 		let jar_path = fetch_artifact(&resolved, &source, &effective_pom, index, logger)?;
 		logger.maven_installed_step();
-		resolved_libraries.push(ResolvedLibrary { coordinate: resolved, jar_path });
+		resolved_libraries.push(ResolvedLibrary { coordinate: resolved, jar_path, is_stub });
 	}
 
 	logger.clear_maven_total();
@@ -129,7 +137,10 @@ fn select_versions(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Po
 
 	let mut queue: VecDeque<QueueItem> = VecDeque::new();
 	for (coordinate, constraint) in &manifest.libraries {
-		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false });
+		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false, is_stub: false });
+	}
+	for (coordinate, constraint) in &manifest.stub_libraries {
+		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false, is_stub: true });
 	}
 
 	while let Some(item) = queue.pop_front() {
@@ -141,18 +152,30 @@ fn select_versions(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Po
 		let version = find_version(manifest, &item.coordinate, &item.constraint, index, logger)?;
 
 		let mut required_by = item.required_by;
+		// a coordinate reached by any non-stub path is never left as a stub: stub status only
+		// applies when every path requesting it is a stub, so a real dependency always wins
+		let mut is_stub = item.is_stub;
+		let mut superseded = false;
 		match selected.get(&item.coordinate) {
 			None => order.push(item.coordinate.clone()),
 			Some(current) => {
+				is_stub = current.is_stub && item.is_stub;
 				if compare_versions(&current.resolved.version, &version) != std::cmp::Ordering::Less {
-					continue;
-				}
-				logger.log(&format!("{} {} superseded by {version}", item.coordinate, current.resolved.version));
-				// a library named in maven.yml stays a direct one even when a transitive bumps it
-				if current.required_by.is_none() {
-					required_by = None;
+					superseded = true;
+				} else {
+					logger.log(&format!("{} {} superseded by {version}", item.coordinate, current.resolved.version));
+					// a library named in maven.yml stays a direct one even when a transitive bumps it
+					if current.required_by.is_none() {
+						required_by = None;
+					}
 				}
 			}
+		}
+		if superseded {
+			if let Some(current) = selected.get_mut(&item.coordinate) {
+				current.is_stub = is_stub;
+			}
+			continue;
 		}
 
 		let resolved = ResolvedCoordinate {
@@ -178,11 +201,11 @@ fn select_versions(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Po
 					}
 				};
 				let child_coordinate = Coordinate { group_id: dependency.group_id.clone(), artifact_id: dependency.artifact_id.clone() };
-				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed });
+				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed, is_stub });
 			}
 		}
 
-		selected.insert(item.coordinate, Selection { resolved, effective_pom, source, required_by });
+		selected.insert(item.coordinate, Selection { resolved, effective_pom, source, required_by, is_stub });
 	}
 
 	Ok(order.into_iter().filter_map(|coordinate| selected.remove(&coordinate)).collect())
@@ -191,11 +214,11 @@ fn select_versions(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Po
 fn discover_total(manifest: &Manifest, index: &cache::Index, pom_cache: &mut PomCache, logger: &mut Logger) -> Result<u32, Error> {
 	let mut visited: HashSet<Coordinate> = HashSet::new();
 
-	for (coordinate, constraint) in &manifest.libraries {
+	for (coordinate, constraint) in manifest.libraries.iter().chain(&manifest.stub_libraries) {
 		logger.log(&format!("Finding all sub-dependencies for {coordinate}"));
 
 		let mut queue: VecDeque<QueueItem> = VecDeque::new();
-		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false });
+		queue.push_back(QueueItem { coordinate: coordinate.clone(), constraint: constraint.clone(), required_by: None, version_guessed: false, is_stub: false });
 
 		while let Some(item) = queue.pop_front() {
 			if visited.contains(&item.coordinate) {
@@ -224,7 +247,7 @@ fn discover_total(manifest: &Manifest, index: &cache::Index, pom_cache: &mut Pom
 					None => Constraint::Latest,
 				};
 				let child_coordinate = Coordinate { group_id: dependency.group_id.clone(), artifact_id: dependency.artifact_id.clone() };
-				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed: false });
+				queue.push_back(QueueItem { coordinate: child_coordinate, constraint, required_by: Some(resolved.clone()), version_guessed: false, is_stub: false });
 			}
 		}
 	}

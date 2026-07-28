@@ -27,7 +27,6 @@ import de.shareui.haru.sdk.SdkManager
 import org.telegram.messenger.AndroidUtilities
 import org.telegram.messenger.ApplicationLoader
 import org.telegram.messenger.FileLoader
-import org.telegram.messenger.FileLog
 import org.telegram.messenger.LocaleController
 import org.telegram.messenger.R
 import org.telegram.messenger.Utilities
@@ -143,7 +142,11 @@ class SdkActivity : BaseFragment() {
                 .show()
         } else if (!enable) {
             BulletinFactory.of(this)
-                .createSimpleBulletin(R.raw.info, str(R.string.HaruSdkRestartToUnload, sdk.name))
+                .createSimpleBulletin(
+                    R.raw.info,
+                    str(R.string.HaruSdkRestartToUnload, sdk.name),
+                    str(R.string.HaruSdkRestart)
+                ) { restartApp(this) }
                 .show()
         }
     }
@@ -180,7 +183,7 @@ class SdkActivity : BaseFragment() {
                     intent.putExtra(Intent.EXTRA_STREAM, uri)
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (e: Exception) {
-                    FileLog.e(e)
+                    HaruLog.App.log(e.toString(), HaruLog.Color.RED)
                     intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(outFile))
                 }
             } else {
@@ -188,7 +191,7 @@ class SdkActivity : BaseFragment() {
             }
             activity.startActivityForResult(Intent.createChooser(intent, str(R.string.HaruSdkShare)), 500)
         } catch (e: Exception) {
-            FileLog.e(e)
+            HaruLog.App.log(e.toString(), HaruLog.Color.RED)
             BulletinFactory.of(this).createErrorBulletin(str(R.string.HaruSdkErrorShare)).show()
         }
     }
@@ -306,6 +309,7 @@ class SdkActivity : BaseFragment() {
         private val idView: TextView
         private val nameView: TextView
         private val infoView: TextView
+        private val statusView: TextView
         private val switchView: Switch
 
         init {
@@ -344,10 +348,19 @@ class SdkActivity : BaseFragment() {
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = if (LocaleController.isRTL) Gravity.RIGHT else Gravity.LEFT
             }
+            statusView = TextView(context).apply {
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
+                setTextColor(Theme.getColor(Theme.key_color_yellow))
+                maxLines = 1
+                setSingleLine(true)
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = if (LocaleController.isRTL) Gravity.RIGHT else Gravity.LEFT
+            }
 
             texts.addView(idView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT))
             texts.addView(nameView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 2f, 0f, 0f))
             texts.addView(infoView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 3f, 0f, 0f))
+            texts.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0f, 3f, 0f, 0f))
 
             addView(
                 texts,
@@ -389,11 +402,14 @@ class SdkActivity : BaseFragment() {
             // Only worth its own line when the metadata declares a real name.
             nameView.visibility = if (sdk.name == sdk.id) View.GONE else View.VISIBLE
             infoView.text = describe(sdk)
+            val status = status(sdk)
+            statusView.text = status
+            statusView.visibility = if (status.isEmpty()) View.GONE else View.VISIBLE
             switchView.setChecked(SdkManager.isEnabled(sdk.id), true)
         }
 
         private fun describe(sdk: HaruSdk): String {
-            val parts = ArrayList<String>(3)
+            val parts = ArrayList<String>(2)
             parts.add(
                 if (sdk.author.isNotEmpty()) {
                     str(R.string.HaruSdkByAuthor, sdk.author)
@@ -409,17 +425,23 @@ class SdkActivity : BaseFragment() {
             } else if (sdk.state.isNotEmpty()) {
                 parts.add("(${sdk.state})")
             }
-            if (!SdkManager.isEnabled(sdk.id)) {
-                parts.add(str(R.string.HaruSdkDisabled))
-            } else if (!SdkManager.isRunning(sdk.id)) {
-                parts.add(str(R.string.HaruSdkNotLoaded))
-            }
             return parts.joinToString(" · ")
+        }
+
+        private fun status(sdk: HaruSdk): String {
+            return if (!SdkManager.isEnabled(sdk.id)) {
+                str(R.string.HaruSdkDisabled)
+            } else if (!SdkManager.isRunning(sdk.id)) {
+                str(R.string.HaruSdkNotLoaded)
+            } else {
+                ""
+            }
         }
     }
 }
 
-private fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntered: (String) -> Unit) {
+
+internal fun askPassword(fragment: BaseFragment, wrongPassword: Boolean, onEntered: (String) -> Unit) {
     val context = fragment.context ?: fragment.parentActivity ?: return
     val resourcesProvider = fragment.resourceProvider
 
@@ -577,7 +599,7 @@ internal fun install(
                     }
                     val text = HaruLocale.getString(context, resId)
                     val detail = result.detail?.takeIf { it.isNotBlank() }
-                    HaruLog.log(
+                    HaruLog.App.log(
                         "sdk install failed: ${result.failure}${if (detail != null) " ($detail)" else ""}",
                         HaruLog.Color.RED
                     )

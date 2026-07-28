@@ -7,6 +7,8 @@ use serde_json::Value;
 use crate::actions::res_gen;
 use crate::actions::toolchain::{self, Tool};
 use crate::progress::Logger;
+use crate::utils::bithash;
+use crate::utils::cache;
 
 const KOTLIN_CACHE_DIR: &str = "build/cache/kotlinc";
 const JAVA_CACHE_DIR: &str = "build/cache/javac";
@@ -79,17 +81,18 @@ fn lang_of_path(path: &Path) -> Result<Lang, Error> {
 	}
 }
 
-pub fn run(haru_yml: &Value, source_path: &str, release: bool, jvm_args: &[String], maven_libs: &[String], logger: &mut Logger) -> Result<(), Error> {
+pub fn run(haru_yml: &Value, source_path: &str, release: bool, jvm_args: &[String], maven_libs: &[String], maven_stub_libs: &[String], logger: &mut Logger) -> Result<(), Error> {
 	let sources = collect_sources(haru_yml, source_path)?;
 	logger.extend_total(sources.len() as u32);
 
-	let class_files = compile_sources(haru_yml, &sources, jvm_args, maven_libs, logger)?;
+	let class_files = compile_sources(haru_yml, &sources, jvm_args, maven_libs, maven_stub_libs, logger)?;
 	logger.extend_total(class_files.len() as u32);
 
-	let static_libs = resolve_static_libs_for_dex(haru_yml, maven_libs, logger)?;
+	let bundled_libs = resolve_bundled_libs(haru_yml, logger)?;
+	let static_libs = resolve_static_libs_for_dex(&bundled_libs, maven_libs);
 	let dex_files = dex_classes(&class_files, &static_libs, logger)?;
 
-	merge_dex(&dex_files, &static_libs, release, logger)?;
+	merge_dex(&dex_files, maven_libs, &bundled_libs, release, logger)?;
 	logger.step();
 
 	Ok(())
@@ -139,8 +142,8 @@ fn walk_dir(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 	Ok(files)
 }
 
-fn compile_sources(haru_yml: &Value, sources: &[SourceFile], jvm_args: &[String], maven_libs: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
-	let classpath = build_classpath(haru_yml, maven_libs, logger)?;
+fn compile_sources(haru_yml: &Value, sources: &[SourceFile], jvm_args: &[String], maven_libs: &[String], maven_stub_libs: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+	let classpath = build_classpath(haru_yml, maven_libs, maven_stub_libs, logger)?;
 	let stub_roots = stub_source_roots(haru_yml, logger);
 
 	let (kotlin_sources, java_sources): (Vec<&SourceFile>, Vec<&SourceFile>) = sources.iter().partition(|s| s.lang == Lang::Kotlin);
@@ -299,7 +302,7 @@ fn stub_source_roots(haru_yml: &Value, logger: &mut Logger) -> Vec<PathBuf> {
 	roots
 }
 
-fn build_classpath(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn build_classpath(haru_yml: &Value, maven_libs: &[String], maven_stub_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml).into_iter().chain(read_stubs(haru_yml)) {
 		let entry_path = Path::new(&path);
@@ -314,6 +317,7 @@ fn build_classpath(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger)
 		entries.push(resolved);
 	}
 	entries.extend(maven_libs.iter().cloned());
+	entries.extend(maven_stub_libs.iter().cloned());
 	logger.debug(&format!("classpath: {}", entries.join(", ")));
 	Ok(entries)
 }
@@ -336,6 +340,11 @@ fn extract_aar_classes(aar_path: &Path) -> Result<PathBuf, Error> {
 	let out_dir = Path::new(AAR_EXTRACT_DIR).join(name);
 	let out_jar = out_dir.join("classes.jar");
 
+	let hash = bithash::hash_file(&aar_path.to_string_lossy(), bithash::SEED_DEFAULT).map_err(|_| Error::AarMissingClasses(aar_path.display().to_string()))?;
+	if out_jar.is_file() && cache::is_fresh(&out_dir, hash) {
+		return Ok(out_jar);
+	}
+
 	fs::create_dir_all(&out_dir).map_err(Error::Io)?;
 
 	let file = fs::File::open(aar_path).map_err(Error::Io)?;
@@ -346,19 +355,26 @@ fn extract_aar_classes(aar_path: &Path) -> Result<PathBuf, Error> {
 
 	let mut out_file = fs::File::create(&out_jar).map_err(Error::Io)?;
 	std::io::copy(&mut entry, &mut out_file).map_err(Error::Io)?;
+	drop(out_file);
 
+	cache::store(&out_dir, hash).map_err(Error::Io)?;
 	Ok(out_jar)
 }
 
-fn resolve_static_libs_for_dex(haru_yml: &Value, maven_libs: &[String], logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn resolve_static_libs_for_dex(bundled_libs: &[String], maven_libs: &[String]) -> Vec<String> {
+	let mut entries = bundled_libs.to_vec();
+	entries.extend(maven_libs.iter().cloned());
+	entries
+}
+
+fn resolve_bundled_libs(haru_yml: &Value, logger: &mut Logger) -> Result<Vec<String>, Error> {
 	let mut entries = Vec::new();
 	for path in read_static_libs(haru_yml) {
 		match resolve_lib_entry(&path, logger)? {
 			Some(resolved) => entries.push(resolved),
-			None => logger.log(&format!("Skipping {path} as a d8 --lib")),
+			None => logger.log(&format!("Skipping {path}, not a .jar or .aar, cannot be dexed into the output")),
 		}
 	}
-	entries.extend(maven_libs.iter().cloned());
 	Ok(entries)
 }
 
@@ -374,9 +390,20 @@ fn read_stub_source_dirs(haru_yml: &Value) -> Vec<PathBuf> {
 }
 
 fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], stub_roots: &[PathBuf], jvm_args: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
-	let staging_dir = Path::new(KOTLIN_STAGING_DIR);
 	let kotlin_sources: Vec<&&SourceFile> = sources.iter().filter(|s| s.lang == Lang::Kotlin).collect();
+	let cache_dir = Path::new(KOTLIN_CACHE_DIR);
 
+	let hash = jvm_compile_fingerprint(sources, classpath, stub_roots, jvm_args).map_err(Error::Io)?;
+	if cache_dir.is_dir() && cache::is_fresh(cache_dir, hash) {
+		let produced = cache::load_manifest(cache_dir).map_err(Error::Io)?;
+		for source in &kotlin_sources {
+			logger.log(&format!("{} up to date, skipping kotlinc", source.path.display()));
+			logger.step();
+		}
+		return Ok(produced);
+	}
+
+	let staging_dir = Path::new(KOTLIN_STAGING_DIR);
 	for source in sources {
 		logger.debug(&format!("staging {} -> {}", source.path.display(), staging_dir.join(&source.relative).display()));
 	}
@@ -400,11 +427,45 @@ fn compile_kotlin_sources(sources: &[&SourceFile], classpath: &[String], stub_ro
 		logger.step();
 	}
 
-	let produced = staged_classes_from_report(&report, &staging_root, &absolute(Path::new(KOTLIN_CACHE_DIR)));
+	let produced = staged_classes_from_report(&report, &staging_root, &absolute(cache_dir));
 	for class_file in &produced {
 		logger.debug(&format!("kotlinc produced {}", class_file.display()));
 	}
+
+	cache::store_manifest(cache_dir, &produced).map_err(Error::Io)?;
+	cache::store(cache_dir, hash).map_err(Error::Io)?;
 	Ok(produced)
+}
+
+fn jvm_compile_fingerprint(sources: &[&SourceFile], classpath: &[String], stub_roots: &[PathBuf], jvm_args: &[String]) -> std::io::Result<u64> {
+	let mut fingerprint = cache::Fingerprint::new();
+	for source in sources {
+		fingerprint.add_str(&source.relative.to_string_lossy());
+		fingerprint.add_file(&source.path)?;
+	}
+	add_classpath_to_fingerprint(&mut fingerprint, classpath)?;
+	for root in stub_roots {
+		cache::add_dir(&mut fingerprint, root)?;
+	}
+	for arg in jvm_args {
+		fingerprint.add_str(arg);
+	}
+	Ok(fingerprint.finish())
+}
+
+// a classpath entry is either a jar file or a directory of already-compiled classes (e.g. the
+// stub-aux-classes cache); either way its content decides what the compiler sees, so both are hashed
+fn add_classpath_to_fingerprint(fingerprint: &mut cache::Fingerprint, classpath: &[String]) -> std::io::Result<()> {
+	for entry in classpath {
+		fingerprint.add_str(entry);
+		let path = Path::new(entry);
+		if path.is_dir() {
+			cache::add_dir(fingerprint, path)?;
+		} else if path.is_file() {
+			fingerprint.add_file(path)?;
+		}
+	}
+	Ok(())
 }
 
 // kotlinc gets the stub roots as extra source roots, so its output directory also holds classes
@@ -504,10 +565,20 @@ fn run_kotlinc_batch(staging_dir: &Path, stub_roots: &[PathBuf], classpath: &[St
 }
 
 fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], stub_roots: &[PathBuf], jvm_args: &[String], logger: &mut Logger) -> Result<Vec<PathBuf>, Error> {
+	let cache_dir = Path::new(JAVA_CACHE_DIR);
+
+	let hash = jvm_compile_fingerprint(sources, classpath, stub_roots, jvm_args).map_err(Error::Io)?;
+	if cache_dir.is_dir() && cache::is_fresh(cache_dir, hash) {
+		for source in sources {
+			logger.log(&format!("{} up to date, skipping javac", source.path.display()));
+			logger.step();
+		}
+		return classes_produced(cache_dir);
+	}
+
 	// wiped rather than pruned, like the kotlinc one: -implicit:none keeps javac from writing
 	// anything but these sources' own classes, so a clean directory is exactly the build output
 	// and a class left over from a source that has since been deleted cannot reach the dex
-	let cache_dir = Path::new(JAVA_CACHE_DIR);
 	if cache_dir.exists() {
 		fs::remove_dir_all(cache_dir).map_err(Error::Io)?;
 	}
@@ -526,6 +597,7 @@ fn compile_java_sources(sources: &[&SourceFile], classpath: &[String], stub_root
 		logger.step();
 	}
 
+	cache::store(cache_dir, hash).map_err(Error::Io)?;
 	classes_produced(cache_dir)
 }
 
@@ -634,9 +706,18 @@ fn read_static_libs(haru_yml: &Value) -> Vec<String> {
 }
 
 fn dex_one(class_file: &Path, static_libs: &[String], logger: &mut Logger) -> Result<PathBuf, Error> {
-	let binary = locate_tool(Tool::D8, "d8")?;
 	let key = class_file.with_extension("").to_string_lossy().replace(['/', '\\'], "_");
 	let dex_dir = Path::new(D8_CACHE_DIR).join(&key);
+	let dex_path = dex_dir.join("classes.dex");
+
+	let hash = dex_fingerprint(class_file, static_libs).map_err(Error::Io)?;
+	if dex_path.is_file() && cache::is_fresh(&dex_dir, hash) {
+		logger.log(&format!("{} up to date, skipping d8", class_file.display()));
+		logger.step();
+		return Ok(dex_path);
+	}
+
+	let binary = locate_tool(Tool::D8, "d8")?;
 	fs::create_dir_all(&dex_dir).map_err(Error::Io)?;
 
 	logger.log(&format!("Converting {} to .dex", class_file.display()));
@@ -648,22 +729,54 @@ fn dex_one(class_file: &Path, static_libs: &[String], logger: &mut Logger) -> Re
 	}
 
 	run_compiler(&mut command, "d8")?;
+	cache::store(&dex_dir, hash).map_err(Error::Io)?;
 	logger.log(&format!("Dexed {}", class_file.display()));
 	logger.step();
-	Ok(dex_dir.join("classes.dex"))
+	Ok(dex_path)
 }
 
-fn merge_dex(dex_files: &[PathBuf], static_libs: &[String], release: bool, logger: &mut Logger) -> Result<(), Error> {
+// fingerprints what actually decides d8's output: the class file's bytes and every --lib entry's
+// bytes (a static lib can be a jar file or, after aar extraction, a directory of classes)
+fn dex_fingerprint(class_file: &Path, static_libs: &[String]) -> std::io::Result<u64> {
+	let mut fingerprint = cache::Fingerprint::new();
+	fingerprint.add_file(class_file)?;
+	for lib in static_libs {
+		fingerprint.add_str(lib);
+		let path = Path::new(lib);
+		if path.is_dir() {
+			cache::add_dir(&mut fingerprint, path)?;
+		} else if path.is_file() {
+			fingerprint.add_file(path)?;
+		}
+	}
+	Ok(fingerprint.finish())
+}
+
+fn merge_dex(
+	dex_files: &[PathBuf],
+	static_libs: &[String],
+	bundled_libs: &[String],
+	release: bool,
+	logger: &mut Logger,
+) -> Result<(), Error> {
 	let binary = locate_tool(Tool::D8, "d8")?;
 
 	let out_dir = Path::new(FINAL_DEX).parent().unwrap_or(Path::new("build"));
 	fs::create_dir_all(out_dir).map_err(Error::Io)?;
 
 	logger.log(&format!("Merging dexes into {FINAL_DEX}"));
+	for lib in bundled_libs {
+		logger.log(&format!("Bundling {lib} into {FINAL_DEX}"));
+	}
 
 	let mut command = Command::new(&binary);
 	for dex in dex_files {
 		command.arg(dex);
+	}
+	// passed as plain input, not --lib: d8 dexes these classes and merges them into the output,
+	// which is what actually embeds a static lib rather than just resolving types against it
+	for lib in bundled_libs {
+		command.arg(lib);
 	}
 	command.arg("--output").arg(out_dir);
 	for lib in static_libs {

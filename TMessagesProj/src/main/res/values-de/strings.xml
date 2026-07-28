@@ -1432,4 +1432,19 @@
     <string name="HaruSdkErrorShare">Fehler beim Senden der Datei</string>
     <string name="HaruSdkRestart">Neustart</string>
     <string name="SdkSourceError">Fehler. Uberprufen sie die protokolle</string>
+    <string name="HaruLogStorage">Protokolle speichern in</string>
+    <string name="HaruLogStorageFile">Datei</string>
+    <string name="HaruLogStorageMemory">Arbeitsspeicher</string>
+    <string name="HaruLogMaxLines">Max. Protokollzeilen</string>
+    <string name="HaruLogShowApp">App-Protokolle</string>
+    <string name="HaruLogShowSdk">SDK-Protokolle</string>
+    <string name="HaruLogShowTime">Zeit anzeigen</string>
+    <string name="HaruLogDuplicateLogcat">In Logcat duplizieren</string>
+    <string name="HaruLogDisplay">Protokollanzeige</string>
+    <string name="HaruSdkInstallTitle">Install SDK</string>
+    <string name="HaruSdkFieldPackage">Package:</string>
+    <string name="HaruSdkFieldVersion">Version:</string>
+    <string name="HaruSdkFieldAuthor">Author:</string>
+    <string name="HaruSdkFieldApp">App version:</string>
+    <string name="HaruInstall">Installiert</string>
 </resources>

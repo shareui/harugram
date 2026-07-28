@@ -41197,6 +41197,27 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(fragment);
                 }
             } else if (message.type == MessageObject.TYPE_FILE || message.type == MessageObject.TYPE_TEXT) {
+                if (message.getDocumentName().toLowerCase().endsWith(".harusdk")) {
+                    File locFile = null;
+                    if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {
+                        File f = new File(message.messageOwner.attachPath);
+                        if (f.exists()) {
+                            locFile = f;
+                        }
+                    }
+                    if (locFile == null) {
+                        File f = getFileLoader().getPathToMessage(message.messageOwner);
+                        if (f.exists()) {
+                            locFile = f;
+                        }
+                    }
+                    if (locFile != null) {
+                        de.shareui.haru.activities.SdkInstallDialogKt.showSdkInstallDialog(ChatActivity.this, Uri.fromFile(locFile));
+                    } else {
+                        alertUserOpenError(message);
+                    }
+                    return;
+                }
                 if (message.getDocumentName().toLowerCase().endsWith("attheme")) {
                     File locFile = null;
                     if (message.messageOwner.attachPath != null && message.messageOwner.attachPath.length() != 0) {

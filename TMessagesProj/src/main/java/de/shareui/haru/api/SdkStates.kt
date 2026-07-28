@@ -127,7 +127,7 @@ object SdkStates {
                 try {
                     listener.onSdkEvent(id, event)
                 } catch (e: Throwable) {
-                    HaruLog.log("sdk listener failed on $id/$event: $e", HaruLog.Color.RED, true)
+                    HaruLog.App.log("sdk listener failed on $id/$event: $e", HaruLog.Color.RED, true)
                 }
             }
         }

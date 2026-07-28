@@ -11,6 +11,7 @@ use crate::actions::maven;
 use crate::actions::package::{self, Password};
 use crate::actions::res_gen;
 use crate::progress::Logger;
+use crate::utils::cache;
 
 const HARU_YML: &str = "haru.yml";
 const KOTLIN_MAIN_EXT: &str = "kt";
@@ -167,10 +168,10 @@ fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: 
 	generate_stubs(haru_yml, &source_path, logger)?;
 	logger.step();
 
-	let maven_libs = resolve_maven_libs(logger)?;
+	let (maven_libs, maven_stub_libs) = resolve_maven_libs(logger)?;
 	logger.step();
 
-	compile::run(haru_yml, &source_path, options.release, &options.jvm_args, &maven_libs, logger).map_err(Error::Compile)?;
+	compile::run(haru_yml, &source_path, options.release, &options.jvm_args, &maven_libs, &maven_stub_libs, logger).map_err(Error::Compile)?;
 
 	if target == Target::Sdk {
 		let password = options.password.as_ref().map(|pair| Password { algorithm: pair[0].clone(), value: pair[1].clone() });
@@ -186,10 +187,11 @@ fn run_checks(haru_yml: &Value, target: Target, options: &BuildOptions, logger: 
 	Ok(())
 }
 
-// step 8.5: resolves maven.yml libraries (if present) into jar paths ready for the compiler classpath and d8 --lib
-fn resolve_maven_libs(logger: &mut Logger) -> Result<Vec<String>, Error> {
+fn resolve_maven_libs(logger: &mut Logger) -> Result<(Vec<String>, Vec<String>), Error> {
 	let resolved = maven::resolve(logger).map_err(Error::Maven)?;
-	Ok(resolved.into_iter().filter_map(|lib| lib.jar_path).collect())
+	let (stubs, bundled): (Vec<_>, Vec<_>) = resolved.into_iter().partition(|lib| lib.is_stub);
+	let jar_paths = |libs: Vec<maven::ResolvedLibrary>| libs.into_iter().filter_map(|lib| lib.jar_path).collect();
+	Ok((jar_paths(bundled), jar_paths(stubs)))
 }
 
 fn read_haru_yml() -> Result<Value, Error> {
@@ -541,10 +543,10 @@ fn generate_stubs(haru_yml: &Value, source_path: &str, logger: &mut Logger) -> R
 	let stub_entries: Vec<&str> = stubs.iter().filter_map(Value::as_str).collect();
 
 	let r_cache_dir = Path::new(R_CACHE_DIR);
-	if r_cache_dir.exists() {
-		fs::remove_dir_all(r_cache_dir).map_err(Error::Io)?;
-	}
 	if stub_entries.is_empty() {
+		if r_cache_dir.exists() {
+			fs::remove_dir_all(r_cache_dir).map_err(Error::Io)?;
+		}
 		return Ok(());
 	}
 
@@ -556,9 +558,44 @@ fn generate_stubs(haru_yml: &Value, source_path: &str, logger: &mut Logger) -> R
 		}
 	}
 
+	let hash = stub_generation_fingerprint(&stub_entries, &scan_roots).map_err(Error::Io)?;
+	if r_cache_dir.is_dir() && cache::is_fresh(r_cache_dir, hash) {
+		logger.log("R.java / BuildConfig.java up to date, skipping generation");
+		return Ok(());
+	}
+
+	if r_cache_dir.exists() {
+		fs::remove_dir_all(r_cache_dir).map_err(Error::Io)?;
+	}
 	generate_r_java(&stub_entries, &scan_roots, r_cache_dir, logger)?;
 	generate_build_config(&stub_entries, &scan_roots, r_cache_dir, logger)?;
+	cache::store(r_cache_dir, hash).map_err(Error::Io)?;
 	Ok(())
+}
+
+fn stub_generation_fingerprint(stub_entries: &[&str], scan_roots: &[&Path]) -> std::io::Result<u64> {
+	let mut fingerprint = cache::Fingerprint::new();
+
+	for raw in stub_entries {
+		fingerprint.add_str(raw);
+	}
+	for root in scan_roots {
+		cache::add_dir(&mut fingerprint, root)?;
+	}
+	for raw in stub_entries {
+		let entry = res_gen::split_stub_entry(raw);
+		if let Some(res_path) = entry.res_path {
+			cache::add_dir(&mut fingerprint, Path::new(res_path))?;
+		}
+		if let Some(gradle_path) = entry.gradle_path {
+			fingerprint.add_file(Path::new(gradle_path))?;
+		}
+		if let Some(gradle_properties_path) = entry.gradle_properties_path {
+			fingerprint.add_file(Path::new(gradle_properties_path))?;
+		}
+	}
+
+	Ok(fingerprint.finish())
 }
 
 // generates R.java for every package that imports R, using resources from every res path in stubs
