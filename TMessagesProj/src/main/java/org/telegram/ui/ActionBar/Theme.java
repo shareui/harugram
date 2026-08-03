@@ -93,6 +93,8 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import de.shareui.haru.monet.MonetAccentHelper;
+import de.shareui.haru.monet.MonetUtils;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SvgHelper;
 import org.telegram.messenger.UserConfig;
@@ -1025,7 +1027,7 @@ public class Theme {
                 lastRect.set(bounds);
                 return invalidate;
             }
-            
+
             public Path getPath() {
                 return path;
             }
@@ -1336,6 +1338,10 @@ public class Theme {
     }
 
     public static class ThemeAccent {
+        public static ThemeAccent create() {
+            return new ThemeAccent();
+        }
+
         public int id;
 
         public ThemeInfo parentTheme;
@@ -1351,6 +1357,7 @@ public class Theme {
         public long backgroundGradientOverrideColor1;
         public long backgroundGradientOverrideColor2;
         public long backgroundGradientOverrideColor3;
+        public int inBubbleOverrideColor;
         public int backgroundRotation = 45;
         public String patternSlug = "";
         public float patternIntensity;
@@ -1386,6 +1393,7 @@ public class Theme {
             this.backgroundGradientOverrideColor1 = other.backgroundGradientOverrideColor1;
             this.backgroundGradientOverrideColor2 = other.backgroundGradientOverrideColor2;
             this.backgroundGradientOverrideColor3 = other.backgroundGradientOverrideColor3;
+            this.inBubbleOverrideColor = other.inBubbleOverrideColor;
             this.backgroundRotation = other.backgroundRotation;
             this.patternSlug = other.patternSlug;
             this.patternIntensity = other.patternIntensity;
@@ -1660,6 +1668,10 @@ public class Theme {
                 currentColors.put(key_chat_wallpaper_gradient_rotation, backgroundRotation);
             }
 
+            if (inBubbleOverrideColor != 0) {
+                currentColors.put(key_chat_inBubble, inBubbleOverrideColor);
+            }
+
             int outBubble = currentColors.get(key_chat_outBubble);
             if (outBubble == 0) {
                 outBubble = getColor(key_chat_outBubble);
@@ -1716,10 +1728,10 @@ public class Theme {
                 submenuBackground = getColor(key_actionBarDefaultSubmenuBackground);
             }
             currentColors.put(key_actionBarDefaultSubmenuSeparator, Color.argb(
-                Color.alpha(submenuBackground),
-                Math.max(0, Color.red(submenuBackground) - 10),
-                Math.max(0, Color.green(submenuBackground) - 10),
-                Math.max(0, Color.blue(submenuBackground) - 10)
+                    Color.alpha(submenuBackground),
+                    Math.max(0, Color.red(submenuBackground) - 10),
+                    Math.max(0, Color.green(submenuBackground) - 10),
+                    Math.max(0, Color.blue(submenuBackground) - 10)
             ));
 
             if (isDarkTheme && currentColors.get(key_chat_outBubbleGradient1) != 0) {
@@ -1957,15 +1969,15 @@ public class Theme {
     public static int blendOver(int A, int B) { // B over A
         // over operator: https://en.wikipedia.org/wiki/Alpha_compositing#Description
         float aB = Color.alpha(B) / 255f,
-              aA = Color.alpha(A) / 255f,
-              aC = (aB + aA * (1 - aB));
+                aA = Color.alpha(A) / 255f,
+                aC = (aB + aA * (1 - aB));
         if (aC == 0f)
             return 0;
         return Color.argb(
-            (int) (aC * 255),
-            (int) ((Color.red(B) * aB + Color.red(A) * aA * (1 - aB)) / aC),
-            (int) ((Color.green(B) * aB + Color.green(A) * aA * (1 - aB)) / aC),
-            (int) ((Color.blue(B) * aB + Color.blue(A) * aA * (1 - aB)) / aC)
+                (int) (aC * 255),
+                (int) ((Color.red(B) * aB + Color.red(A) * aA * (1 - aB)) / aC),
+                (int) ((Color.green(B) * aB + Color.green(A) * aA * (1 - aB)) / aC),
+                (int) ((Color.blue(B) * aB + Color.blue(A) * aA * (1 - aB)) / aC)
         );
     }
 
@@ -2000,8 +2012,8 @@ public class Theme {
         tempHSV[1] = MathUtils.clamp(AndroidUtilities.lerp(tempHSV[1], sat2, satT), 0, 1);
         tempHSV[2] = MathUtils.clamp(AndroidUtilities.lerp(tempHSV[2], val2, valT), 0, 1);
         return Color.HSVToColor(
-            AndroidUtilities.lerp(Color.alpha(color1), Color.alpha(color2), .85f),
-            tempHSV
+                AndroidUtilities.lerp(Color.alpha(color1), Color.alpha(color2), .85f),
+                tempHSV
         );
     }
 
@@ -2017,12 +2029,12 @@ public class Theme {
 
     public static int reverseBlendOver(float ax, int y, int z) {
         float ay = Color.alpha(y) / 255f,
-              az = Color.alpha(z) / 255f;
+                az = Color.alpha(z) / 255f;
         return Color.argb(
-            (int) (ax * 255),
-            (int) ((Color.red(y) * ay * (1 - ax) - Color.red(z) * az) / ax),
-            (int) ((Color.green(y) * ay * (1 - ax) - Color.green(z) * az) / ax),
-            (int) ((Color.blue(y) * ay * (1 - ax) - Color.blue(z) * az) / ax)
+                (int) (ax * 255),
+                (int) ((Color.red(y) * ay * (1 - ax) - Color.red(z) * az) / ax),
+                (int) ((Color.green(y) * ay * (1 - ax) - Color.green(z) * az) / ax),
+                (int) ((Color.blue(y) * ay * (1 - ax) - Color.blue(z) * az) / ax)
         );
     }
 
@@ -2476,13 +2488,17 @@ public class Theme {
             return defaultAccentCount != 0;
         }
 
+        public boolean isMonet() {
+            return "Monet Dark".equals(name) || "Monet Light".equals(name) || "Monet Black".equals(name);
+        }
+
         public boolean isDark() {
             if (isDark != UNKNOWN) {
                 return isDark == DARK;
             }
-            if ("Dark Blue".equals(name) || "Night".equals(name)) {
+            if ("Dark Blue".equals(name) || "Night".equals(name) || "Monet Dark".equals(name) || "Monet Black".equals(name)) {
                 isDark = DARK;
-            } else if ("Blue".equals(name) || "Arctic Blue".equals(name) || "Day".equals(name)) {
+            } else if ("Blue".equals(name) || "Arctic Blue".equals(name) || "Day".equals(name) || "Monet Light".equals(name)) {
                 isDark = LIGHT;
             }
             if (isDark == UNKNOWN) {
@@ -2624,6 +2640,7 @@ public class Theme {
                 themeAccents.add(themeAccent);
             }
             accentBaseColor = themeAccentsMap.get(0).accentColor;
+            MonetAccentHelper.appendAccentOptions(this);
         }
 
         @UiThread
@@ -4628,7 +4645,7 @@ public class Theme {
                 new String[] {         "",  "p-pXcflrmFIBAAAAvXYQk-mCwZU", "JqSUrO0-mFIBAAAAWwTvLzoWGQI", "O-wmAfBPSFADAAAA4zINVfD_bro", "RepJ5uE_SVABAAAAr4d0YhgB850", "-Xc-np9y2VMCAAAARKr0yNNPYW0", "fqv01SQemVIBAAAApND8LDRUhRU", "fqv01SQemVIBAAAApND8LDRUhRU", "RepJ5uE_SVABAAAAr4d0YhgB850", "lp0prF8ISFAEAAAA_p385_CvG0w", "heptcj-hSVACAAAAC9RrMzOa-cs", "PllZ-bf_SFAEAAAA8crRfwZiDNg", "dhf9pceaQVACAAAAbzdVo4SCiZA", "Ujx2TFcJSVACAAAARJ4vLa50MkM", "p-pXcflrmFIBAAAAvXYQk-mCwZU", "dk_wwlghOFACAAAAfz9xrxi6euw" },
                 new int[]    {          0,                            180,                            45,                             0,                            45,                           180,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0 },
                 new int[]    {          0,                             52,                            46,                            57,                            45,                            64,                            52,                            35,                            36,                            41,                            50,                            50,                            35,                            38,                            37,                            30 }
-                );
+        );
         sortAccents(themeInfo);
         themes.add(currentDayTheme = defaultTheme = themeInfo);
         themesDict.put("Blue", themeInfo);
@@ -4652,7 +4669,7 @@ public class Theme {
                 new String[] { "O-wmAfBPSFADAAAA4zINVfD_bro", "RepJ5uE_SVABAAAAr4d0YhgB850", "dk_wwlghOFACAAAAfz9xrxi6euw", "9LW_RcoOSVACAAAAFTk3DTyXN-M", "PllZ-bf_SFAEAAAA8crRfwZiDNg", "-Xc-np9y2VMCAAAARKr0yNNPYW0", "kO4jyq55SFABAAAA0WEpcLfahXk", "CJNyxPMgSVAEAAAAvW9sMwc51cw", "fqv01SQemVIBAAAApND8LDRUhRU", "RepJ5uE_SVABAAAAr4d0YhgB850", "CJNyxPMgSVAEAAAAvW9sMwc51cw", "9LW_RcoOSVACAAAAFTk3DTyXN-M", "9GcNVISdSVADAAAAUcw5BYjELW4", "F5oWoCs7QFACAAAAgf2bD_mg8Bw", "9ShF73d1MFIIAAAAjWnm8_ZMe8Q", "3rX-PaKbSFACAAAAEiHNvcEm6X4", "dk_wwlghOFACAAAAfz9xrxi6euw", "fqv01SQemVIBAAAApND8LDRUhRU" },
                 new int[]    {                           225,                            45,                           225,                           135,                            45,                           225,                            45,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0 },
                 new int[]    {                            40,                            40,                            31,                            50,                            25,                            34,                            35,                            35,                            38,                            29,                            24,                            34,                            34,                            31,                            29,                            37,                            21,                            38 }
-                );
+        );
         sortAccents(themeInfo);
         themes.add(themeInfo);
         themesDict.put("Dark Blue", currentNightTheme = themeInfo);
@@ -4676,7 +4693,7 @@ public class Theme {
                 new String[] { "MIo6r0qGSFAFAAAAtL8TsDzNX60", "dhf9pceaQVACAAAAbzdVo4SCiZA", "fqv01SQemVIBAAAApND8LDRUhRU", "p-pXcflrmFIBAAAAvXYQk-mCwZU", "JqSUrO0-mFIBAAAAWwTvLzoWGQI", "F5oWoCs7QFACAAAAgf2bD_mg8Bw", "fqv01SQemVIBAAAApND8LDRUhRU", "RepJ5uE_SVABAAAAr4d0YhgB850", "PllZ-bf_SFAEAAAA8crRfwZiDNg", "pgJfpFNRSFABAAAACDT8s5sEjfc", "ptuUd96JSFACAAAATobI23sPpz0", "dhf9pceaQVACAAAAbzdVo4SCiZA", "JqSUrO0-mFIBAAAAWwTvLzoWGQI", "9iklpvIPQVABAAAAORQXKur_Eyc", "F5oWoCs7QFACAAAAgf2bD_mg8Bw" },
                 new int[]    {                           315,                           315,                           225,                           315,                             0,                           180,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0 },
                 new int[]    {                            50,                            50,                            58,                            47,                            46,                            50,                            49,                            46,                            51,                            50,                            49,                            34,                            54,                            50,                            40 }
-                );
+        );
         sortAccents(themeInfo);
         themes.add(themeInfo);
         themesDict.put("Arctic Blue", themeInfo);
@@ -4700,7 +4717,7 @@ public class Theme {
                 new String[] {         "",         "",         "",         "",         "",         "",         "",         "",         "",         "",         "",         "",         "",         "" },
                 new int[]    {          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0 },
                 new int[]    {          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0 }
-                );
+        );
         sortAccents(themeInfo);
         themes.add(themeInfo);
         themesDict.put("Day", themeInfo);
@@ -4724,10 +4741,72 @@ public class Theme {
                 new String[] { "YIxYGEALQVADAAAAA3QbEH0AowY", "9LW_RcoOSVACAAAAFTk3DTyXN-M", "O-wmAfBPSFADAAAA4zINVfD_bro", "F5oWoCs7QFACAAAAgf2bD_mg8Bw", "-Xc-np9y2VMCAAAARKr0yNNPYW0", "fqv01SQemVIBAAAApND8LDRUhRU", "F5oWoCs7QFACAAAAgf2bD_mg8Bw", "ptuUd96JSFACAAAATobI23sPpz0", "p-pXcflrmFIBAAAAvXYQk-mCwZU", "Nl8Pg2rBQVACAAAA25Lxtb8SDp0", "dhf9pceaQVACAAAAbzdVo4SCiZA", "9GcNVISdSVADAAAAUcw5BYjELW4", "9LW_RcoOSVACAAAAFTk3DTyXN-M", "dk_wwlghOFACAAAAfz9xrxi6euw" },
                 new int[]    {                            45,                           135,                             0,                           180,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0,                             0 },
                 new int[]    {                            34,                            47,                            52,                            48,                            54,                            50,                            37,                            56,                            48,                            49,                            40,                            64,                            38,                            48 }
-                );
+        );
         sortAccents(themeInfo);
         themes.add(themeInfo);
         themesDict.put("Night", themeInfo);
+
+        if (MonetUtils.isSupported()) {
+            themeInfo = new ThemeInfo();
+            themeInfo.name = "Monet Light";
+            themeInfo.assetName = "day.attheme";
+            themeInfo.previewBackgroundColor = 0xffffffff;
+            themeInfo.previewInColor = 0xffebeef4;
+            themeInfo.previewOutColor = 0xff7cb2fe;
+            themeInfo.sortIndex = 6;
+            themeInfo.setAccentColorOptions(
+                    new int[]    { 0xFF56A2C9 },
+                    null, null, null, null, null, null,
+                    new int[]    { 0 },
+                    new String[] { "" },
+                    new int[]    { 0 },
+                    new int[]    { 0 }
+            );
+            themeInfo.currentAccentId = 91;
+            sortAccents(themeInfo);
+            themes.add(themeInfo);
+            themesDict.put("Monet Light", themeInfo);
+
+            themeInfo = new ThemeInfo();
+            themeInfo.name = "Monet Dark";
+            themeInfo.assetName = "night.attheme";
+            themeInfo.previewBackgroundColor = 0xff535659;
+            themeInfo.previewInColor = 0xff747A84;
+            themeInfo.previewOutColor = 0xff75A2E6;
+            themeInfo.sortIndex = 7;
+            themeInfo.setAccentColorOptions(
+                    new int[]    { 0xFF6ABE3F },
+                    null, null, null, null, null, null,
+                    new int[]    { 0 },
+                    new String[] { "" },
+                    new int[]    { 0 },
+                    new int[]    { 0 }
+            );
+            themeInfo.currentAccentId = 91;
+            sortAccents(themeInfo);
+            themes.add(themeInfo);
+            themesDict.put("Monet Dark", themeInfo);
+
+            themeInfo = new ThemeInfo();
+            themeInfo.name = "Monet Black";
+            themeInfo.assetName = "night.attheme";
+            themeInfo.previewBackgroundColor = 0xff000000;
+            themeInfo.previewInColor = 0xff747A84;
+            themeInfo.previewOutColor = 0xff75A2E6;
+            themeInfo.sortIndex = 8;
+            themeInfo.setAccentColorOptions(
+                    new int[]    { 0xFF6ABE3F },
+                    null, null, null, null, null, null,
+                    new int[]    { 0 },
+                    new String[] { "" },
+                    new int[]    { 0 },
+                    new int[]    { 0 }
+            );
+            themeInfo.currentAccentId = 91;
+            sortAccents(themeInfo);
+            themes.add(themeInfo);
+            themesDict.put("Monet Black", themeInfo);
+        }
 
         String themesString = themeConfig.getString("themes2", null);
 
@@ -5039,6 +5118,14 @@ public class Theme {
 
     private static void sortAccents(ThemeInfo info) {
         Collections.sort(info.themeAccents, (o1, o2) -> {
+            boolean monet1 = MonetAccentHelper.isMonetAccent(o1);
+            boolean monet2 = MonetAccentHelper.isMonetAccent(o2);
+            if (monet1 != monet2) {
+                return monet1 ? -1 : 1;
+            }
+            if (monet1) {
+                return Integer.compare(o2.id, o1.id);
+            }
             if (isHome(o1)) {
                 return -1;
             }
@@ -5296,9 +5383,9 @@ public class Theme {
         defaultDrawable.setIntrinsicWidth(size);
         defaultDrawable.setIntrinsicHeight(size);
         LinearGradient gradient = new LinearGradient(
-            0, 0, 0, size,
-            colorTop, colorBottom,
-            Shader.TileMode.CLAMP
+                0, 0, 0, size,
+                colorTop, colorBottom,
+                Shader.TileMode.CLAMP
         );
         defaultDrawable.getPaint().setShader(gradient);
         return defaultDrawable;
@@ -5586,12 +5673,12 @@ public class Theme {
         if ((maskType == RIPPLE_MASK_CIRCLE_20DP || maskType == 5) && Build.VERSION.SDK_INT >= 23) {
             maskDrawable = null;
         } else if (
-            maskType == RIPPLE_MASK_CIRCLE_20DP ||
-            maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE ||
-            maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER ||
-            maskType == RIPPLE_MASK_CIRCLE_AUTO ||
-            maskType == 6 ||
-            maskType == RIPPLE_MASK_ROUNDRECT_6DP
+                maskType == RIPPLE_MASK_CIRCLE_20DP ||
+                        maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE ||
+                        maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER ||
+                        maskType == RIPPLE_MASK_CIRCLE_AUTO ||
+                        maskType == 6 ||
+                        maskType == RIPPLE_MASK_ROUNDRECT_6DP
         ) {
             maskPaint.setColor(0xffffffff);
             maskDrawable = new Drawable() {
@@ -5642,8 +5729,8 @@ public class Theme {
             maskDrawable = new ColorDrawable(0xffffffff);
         }
         ColorStateList colorStateList = new ColorStateList(
-            new int[][]{ StateSet.WILD_CARD },
-            new int[]{ color }
+                new int[][]{ StateSet.WILD_CARD },
+                new int[]{ color }
         );
         RippleDrawable rippleDrawable = new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
         if (Build.VERSION.SDK_INT >= 23) {
@@ -5871,9 +5958,9 @@ public class Theme {
                 }
             }
             return createRect(
-                background,
-                rippleColor,
-                radii
+                    background,
+                    rippleColor,
+                    radii
             );
         }
         private static Drawable createRect(Drawable background, int rippleColor, float ...radii) {
@@ -5886,12 +5973,12 @@ public class Theme {
                 ((ShapeDrawable) maskDrawable).getPaint().setColor(0xffffffff);
             }
             return new BaseCell.RippleDrawableSafe(
-                new ColorStateList(
-                    new int[][]{ StateSet.WILD_CARD },
-                    new int[]{ rippleColor }
-                ),
-                background,
-                maskDrawable
+                    new ColorStateList(
+                            new int[][]{ StateSet.WILD_CARD },
+                            new int[]{ rippleColor }
+                    ),
+                    background,
+                    maskDrawable
             );
         }
 
@@ -5903,19 +5990,19 @@ public class Theme {
         }
         private static Drawable createCircle(int backgroundColor, int rippleColor, float radius) {
             return createCircle(
-                backgroundColor == 0 ? null : new CircleDrawable(radius, backgroundColor),
-                rippleColor,
-                radius
+                    backgroundColor == 0 ? null : new CircleDrawable(radius, backgroundColor),
+                    rippleColor,
+                    radius
             );
         }
         private static Drawable createCircle(Drawable background, int rippleColor, float radius) {
             return new BaseCell.RippleDrawableSafe(
-                new ColorStateList(
-                        new int[][]{StateSet.WILD_CARD},
-                        new int[]{rippleColor}
-                ),
-                background,
-                new CircleDrawable(radius)
+                    new ColorStateList(
+                            new int[][]{StateSet.WILD_CARD},
+                            new int[]{rippleColor}
+                    ),
+                    background,
+                    new CircleDrawable(radius)
             );
         }
 
@@ -6101,8 +6188,8 @@ public class Theme {
         maskPaint.setColor(0xffffffff);
         Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
         ColorStateList colorStateList = new ColorStateList(
-            new int[][] { StateSet.WILD_CARD },
-            new int[] { color }
+                new int[][] { StateSet.WILD_CARD },
+                new int[] { color }
         );
         return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
@@ -6111,8 +6198,8 @@ public class Theme {
         maskPaint.setColor(0xffffffff);
         Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
         ColorStateList colorStateList = new ColorStateList(
-            new int[][] { StateSet.WILD_CARD },
-            new int[] { rippleColor }
+                new int[][] { StateSet.WILD_CARD },
+                new int[] { rippleColor }
         );
         return new BaseCell.RippleDrawableSafe(colorStateList, createRoundRectDrawable(dp(topRad), dp(bottomRad), color), maskDrawable);
     }
@@ -7005,7 +7092,34 @@ public class Theme {
     }
 
     public static boolean isCurrentThemeDark() {
-        return currentTheme.isDark();
+        return currentTheme != null && currentTheme.isDark();
+    }
+
+    public static boolean isCurrentThemeMonet() {
+        return currentTheme != null && currentTheme.isMonet();
+    }
+
+    public static boolean isCurrentAccentMonet() {
+        ThemeInfo info = currentTheme;
+        return MonetAccentHelper.isMonetAccent(info != null ? info.getAccent(false) : null);
+    }
+
+    public static void refreshMonetColors() {
+        if (Build.VERSION.SDK_INT < 31 || themes == null) {
+            return;
+        }
+        boolean needsPatternReload = false;
+        int count = themes.size();
+        for (int a = 0; a < count; a++) {
+            ThemeInfo info = themes.get(a);
+            if (info != null) {
+                needsPatternReload |= MonetAccentHelper.refresh(info);
+            }
+        }
+        if (needsPatternReload) {
+            PatternsLoader.createLoader(true);
+        }
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.themeListUpdated);
     }
 
     public static ThemeInfo getActiveTheme() {
@@ -7915,7 +8029,7 @@ public class Theme {
                     protected int getColor(int key) {
                         int index = colors.indexOfKey(key);
                         if (index > 0) {
-                           return colors.valueAt(index);
+                            return colors.valueAt(index);
                         } else {
                             return defaultColors[key];
                         }
@@ -8166,14 +8280,21 @@ public class Theme {
                                 String key = line.substring(0, idx);
                                 String param = line.substring(idx + 1);
                                 int value;
-                                if (param.length() > 0 && param.charAt(0) == '#') {
+                                boolean harmonize = param.length() > 0 && param.charAt(param.length() - 1) == 'h';
+                                String colorParam = harmonize ? param.substring(0, param.length() - 1) : param;
+                                if (colorParam.length() > 0 && colorParam.charAt(0) == '#') {
                                     try {
-                                        value = Color.parseColor(param);
+                                        value = Color.parseColor(colorParam);
                                     } catch (Exception ignore) {
-                                        value = Utilities.parseInt(param);
+                                        value = Utilities.parseInt(colorParam);
                                     }
+                                } else if (Build.VERSION.SDK_INT >= 31 && colorParam.length() > 0 && (colorParam.charAt(0) == 'a' || colorParam.charAt(0) == 'n')) {
+                                    value = MonetUtils.getColor(colorParam.trim());
                                 } else {
-                                    value = Utilities.parseInt(param);
+                                    value = Utilities.parseInt(colorParam);
+                                }
+                                if (Build.VERSION.SDK_INT >= 31 && harmonize) {
+                                    value = MonetUtils.harmonize(value);
                                 }
                                 int keyFromString = ThemeColors.stringKeyToInt(key);
                                 if (keyFromString >= 0) {
@@ -9767,8 +9888,8 @@ public class Theme {
             RippleDrawable rippleDrawable = (RippleDrawable) drawable;
             if (selected) {
                 rippleDrawable.setColor(new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{color}
+                        new int[][]{StateSet.WILD_CARD},
+                        new int[]{color}
                 ));
             } else {
                 if (rippleDrawable.getNumberOfLayers() > 0) {
@@ -10588,13 +10709,13 @@ public class Theme {
             if (fragment != null) {
                 try {
                     BulletinFactory.of(fragment).createSimpleBulletin(
-                        R.raw.auto_night_off,
-                        selectedAutoNightType == AUTO_NIGHT_TYPE_SYSTEM ?
-                                getString("AutoNightSystemModeOff", R.string.AutoNightSystemModeOff) :
-                                getString("AutoNightModeOff", R.string.AutoNightModeOff),
-                        getString("Settings", R.string.Settings),
-                        Bulletin.DURATION_PROLONG,
-                        () -> fragment.presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT))
+                            R.raw.auto_night_off,
+                            selectedAutoNightType == AUTO_NIGHT_TYPE_SYSTEM ?
+                                    getString("AutoNightSystemModeOff", R.string.AutoNightSystemModeOff) :
+                                    getString("AutoNightModeOff", R.string.AutoNightModeOff),
+                            getString("Settings", R.string.Settings),
+                            Bulletin.DURATION_PROLONG,
+                            () -> fragment.presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT))
                     ).show();
                 } catch (Exception e) {
                     FileLog.e(e);
@@ -10611,13 +10732,13 @@ public class Theme {
             if (bulletinFactory != null && openSettings != null) {
                 try {
                     bulletinFactory.createSimpleBulletin(
-                        R.raw.auto_night_off,
-                        selectedAutoNightType == AUTO_NIGHT_TYPE_SYSTEM ?
-                            getString("AutoNightSystemModeOff", R.string.AutoNightSystemModeOff) :
-                            getString("AutoNightModeOff", R.string.AutoNightModeOff),
-                        getString("Settings", R.string.Settings),
-                        Bulletin.DURATION_PROLONG,
-                        openSettings
+                            R.raw.auto_night_off,
+                            selectedAutoNightType == AUTO_NIGHT_TYPE_SYSTEM ?
+                                    getString("AutoNightSystemModeOff", R.string.AutoNightSystemModeOff) :
+                                    getString("AutoNightModeOff", R.string.AutoNightModeOff),
+                            getString("Settings", R.string.Settings),
+                            Bulletin.DURATION_PROLONG,
+                            openSettings
                     ).show();
                 } catch (Exception e) {
                     FileLog.e(e);

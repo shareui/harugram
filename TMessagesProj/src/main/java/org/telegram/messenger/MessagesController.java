@@ -85,6 +85,7 @@ import org.telegram.ui.ActionBar.ActionBarLayout;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import de.shareui.haru.monet.MonetUtils;
 import org.telegram.ui.Business.QuickRepliesController;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.ChatActivity;
@@ -5213,6 +5214,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (peerColor == null)
                     continue;
                 peerColor.isDefaultName = peerColor.id < 7 && type == TYPE_NAME;
+                peerColor.harmonizeMonetColors();
                 if (!peerColor.hidden)
                     peerColors.colors.add(peerColor);
                 peerColors.colorsById.put(peerColor.id, peerColor);
@@ -5324,6 +5326,21 @@ public class MessagesController extends BaseController implements NotificationCe
         public int groupLvl;
         private final int[] colors = new int[6];
         private final int[] darkColors = new int[6];
+
+        // only applies under the Monet theme on SDK 31+, so custom peer color
+        // palettes stay visually consistent with the system dynamic accent
+        void harmonizeMonetColors() {
+            if (!Theme.isCurrentThemeMonet() || Build.VERSION.SDK_INT < 31) {
+                return;
+            }
+            for (int i = 0; i < colors.length; i++) {
+                colors[i] = MonetUtils.harmonize(colors[i]);
+            }
+            for (int i = 0; i < darkColors.length; i++) {
+                darkColors[i] = MonetUtils.harmonize(darkColors[i]);
+            }
+        }
+
         public int getColor(int i, Theme.ResourcesProvider resourcesProvider) {
             if (i < 0 || i > 5) return 0;
             if (isDefaultName && id >= 0 && id < 7) {
