@@ -7168,10 +7168,35 @@ public class Theme {
      * flattens the surfaces of the AMOLED variant to black. Lightness is preserved, so the contrast
      * ratios the base theme was authored with survive.
      */
-    private static void applyMonetColors(ThemeInfo themeInfo, SparseIntArray colors) {
+    public static void applyMonetColors(ThemeInfo themeInfo, SparseIntArray colors) {
         if (themeInfo == null || colors == null || !themeInfo.isMonet() || !MonetUtils.isSupported()) {
             return;
         }
+        tintMonetNeutrals(colors);
+        if (themeInfo.isMonetBlack()) {
+            for (int a = 0; a < monetBlackKeys.length; a++) {
+                colors.put(monetBlackKeys[a], Color.BLACK);
+            }
+            int surface = MonetUtils.getSurfaceColor(true, true);
+            for (int a = 0; a < monetBlackSurfaceKeys.length; a++) {
+                colors.put(monetBlackSurfaceKeys[a], surface);
+            }
+        }
+    }
+
+    /**
+     * Same neutral pass for a chat theme: its accent, bubbles and wallpaper are the point of the
+     * theme and stay untouched, but the surfaces around them follow the system palette so a chat
+     * does not look grey inside an otherwise Monet app.
+     */
+    public static void applyMonetColorsToChatTheme(SparseIntArray colors) {
+        if (colors == null || !MonetUtils.isSupported() || !isCurrentThemeMonet()) {
+            return;
+        }
+        tintMonetNeutrals(colors);
+    }
+
+    private static void tintMonetNeutrals(SparseIntArray colors) {
         for (int key = 0; key < defaultColors.length; key++) {
             if (themeAccentExclusionKeys.contains(key) || isMonetTintExcluded(key)) {
                 continue;
@@ -7191,15 +7216,6 @@ public class Theme {
             int newColor = MonetUtils.tintNeutral(color);
             if (newColor != color) {
                 colors.put(key, newColor);
-            }
-        }
-        if (themeInfo.isMonetBlack()) {
-            for (int a = 0; a < monetBlackKeys.length; a++) {
-                colors.put(monetBlackKeys[a], Color.BLACK);
-            }
-            int surface = MonetUtils.getSurfaceColor(true, true);
-            for (int a = 0; a < monetBlackSurfaceKeys.length; a++) {
-                colors.put(monetBlackSurfaceKeys[a], surface);
             }
         }
     }

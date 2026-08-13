@@ -46,6 +46,9 @@ object MonetUtils {
     private var loaded = false
     private var generation = 0
 
+    private var neutralReference: DoubleArray? = null
+    private var neutralReferenceGeneration = -1
+
     private val overlayChangeReceiver = OverlayChangeReceiver()
 
     @JvmStatic
@@ -168,21 +171,34 @@ object MonetUtils {
         if (!isSupported() || Color.alpha(color) == 0) {
             return color
         }
-        val neutral = getColor("n1_500")
-        if (neutral == 0) {
-            return color
-        }
+        val reference = neutralReference() ?: return color
         val source = OKLCH.rgb2oklch(OKLCH.rgb(color))
         if (source[1] > NEUTRAL_MAX_CHROMA) {
             return color
         }
-        val reference = OKLCH.rgb2oklch(OKLCH.rgb(neutral))
-        if (reference[2].isNaN()) {
-            return color
-        }
-        source[1] = reference[1]
-        source[2] = reference[2]
+        source[1] = reference[0]
+        source[2] = reference[1]
         return toColor(source, Color.alpha(color))
+    }
+
+    /**
+     * Chroma and hue of the neutral ramp as [chroma, hue], cached per palette generation — this is
+     * read once per color key of a theme, which is several hundred times per apply.
+     */
+    @Synchronized
+    private fun neutralReference(): DoubleArray? {
+        if (neutralReferenceGeneration != generation) {
+            neutralReference = null
+            val neutral = getColor("n1_500")
+            if (neutral != 0) {
+                val oklch = OKLCH.rgb2oklch(OKLCH.rgb(neutral))
+                if (!oklch[2].isNaN()) {
+                    neutralReference = doubleArrayOf(oklch[1], oklch[2])
+                }
+            }
+            neutralReferenceGeneration = generation
+        }
+        return neutralReference
     }
 
     /** Pulls a color towards black, used to build the AMOLED variant out of the dark one. */
