@@ -1447,4 +1447,7 @@
     <string name="HaruSdkFieldAuthor">Author:</string>
     <string name="HaruSdkFieldApp">App version:</string>
     <string name="HaruInstall">Installiert</string>
+    <string name="HaruThemeMonetLight">Monet Hell</string>
+    <string name="HaruThemeMonetDark">Monet Dunkel</string>
+    <string name="HaruThemeMonetBlack">Monet Schwarz</string>
 </resources>

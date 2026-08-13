@@ -345,6 +345,7 @@ public class ApplicationLoader extends Application {
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
         ProxyRotationController.init();
+        de.shareui.haru.monet.MonetUtils.registerReceiver(applicationContext);
 
         de.shareui.haru.Main.init();
     }

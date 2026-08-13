@@ -75,6 +75,8 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.EmojiThemes;
 import org.telegram.ui.ActionBar.Theme;
+
+import de.shareui.haru.monet.MonetAccentHelper;
 import org.telegram.ui.ActionBar.ThemeColors;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.AppIconsSelectorCell;
@@ -2333,8 +2335,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, currentType == THEME_TYPE_NIGHT, null, accent.id);
                                 EmojiThemes.saveCustomTheme(currentTheme, accent.id);
                                 Theme.turnOffAutoNight(ThemeActivity.this);
-                            } else {
-                                presentFragment(new ThemePreviewActivity(currentTheme, false, ThemePreviewActivity.SCREEN_TYPE_ACCENT_COLOR, accent.id >= 100, currentType == THEME_TYPE_NIGHT));
+                            } else if (!MonetAccentHelper.isMonetAccent(accent)) {
+                                // a dynamic accent comes from the system palette, there is nothing to edit
+                                presentFragment(new ThemePreviewActivity(currentTheme, false, ThemePreviewActivity.SCREEN_TYPE_ACCENT_COLOR, MonetAccentHelper.canEditAccent(accent), currentType == THEME_TYPE_NIGHT));
                             }
                         }
 
