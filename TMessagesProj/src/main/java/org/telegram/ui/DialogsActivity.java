@@ -4853,7 +4853,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
             if (communityId != 0) {
                 communityPendingRequests = new CommunityRequestsCell(context, resourceProvider, true);
-                communityPendingRequests.set(IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom,
+                communityPendingRequests.set(IconBackgroundColors.BLUE_ALT.getTop(), IconBackgroundColors.BLUE_ALT.getBottom(),
                     R.drawable.filled_requests_24, getString(R.string.CommunityPendingRequests), null, false);
                 communityPendingRequests.setUnreadMode(true);
                 communityPendingRequests.setBackground(Theme.getSelectorDrawable(false));

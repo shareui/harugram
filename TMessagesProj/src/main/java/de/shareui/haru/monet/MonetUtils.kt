@@ -12,6 +12,7 @@ import org.telegram.messenger.ApplicationLoader
 import org.telegram.messenger.FileLog
 import org.telegram.ui.ActionBar.OKLCH
 import org.telegram.ui.ActionBar.Theme
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.withSign
@@ -39,10 +40,11 @@ object MonetUtils {
      */
     private const val NEUTRAL_MAX_CHROMA = 0.02
 
-    /** Same limit Material uses when harmonizing a color towards the key color. */
     private const val MAX_HARMONIZE_DEGREES = 15.0
 
-    private val colorMap = HashMap<String, Int>()
+    private val PARAM_PATTERN = java.util.regex.Pattern.compile("^([^(]+)\\(([^)]+)\\)?$")
+
+    private val colorMap = ConcurrentHashMap<String, Int>()
     private var loaded = false
     private var generation = 0
 
@@ -75,18 +77,70 @@ object MonetUtils {
      * neutral ones, followed by a shade between 0 and 1000, e.g. `a1_600`.
      */
     @JvmStatic
-    @Synchronized
-    fun getColor(token: String): Int {
-        if (!isSupported()) {
+    fun getColor(colorString: String): Int {
+        if (!isSupported() || colorString.isEmpty()) {
             return 0
         }
         ensureLoaded()
-        val color = colorMap[token]
-        if (color != null) {
-            return color
+
+        try {
+            var colorKey = colorString
+            var alpha = 100
+            var saturation = 100
+            var lightness = 100
+
+            if (colorString.indexOf('(') != -1) {
+                val matcher = PARAM_PATTERN.matcher(colorString)
+                if (matcher.find()) {
+                    colorKey = matcher.group(1)?.trim() ?: colorString
+                    val params = matcher.group(2)
+
+                    if (params != null) {
+                        val pairs = params.split(",")
+                        for (pair in pairs) {
+                            val kv = pair.split("=")
+                            if (kv.size == 2) {
+                                try {
+                                    val key = kv[0].trim()
+                                    val value = kv[1].trim().toInt()
+
+                                    when (key) {
+                                        "a" -> alpha = value
+                                        "s" -> saturation = value
+                                        "l" -> lightness = value
+                                    }
+                                } catch (_: NumberFormatException) {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            var colorValue = colorMap[colorKey]
+            if (colorValue == null) { FileLog.e("MonetUtils: unknown color token $colorString")
+                return 0
+            }
+
+            if (saturation != 100) {
+                colorValue = ColorUtils.blendARGB(Color.WHITE, colorValue, saturation / 100f)
+            }
+            if (lightness != 100) {
+                colorValue = ColorUtils.blendARGB(Color.BLACK, colorValue, lightness / 100f)
+            }
+            if (alpha != 100) {
+                colorValue = ColorUtils.setAlphaComponent(colorValue, (alpha * 2.55f).toInt())
+            }
+
+            if (colorKey.startsWith("mR") || colorKey.startsWith("mG")) {
+                colorValue = harmonize(colorValue)
+            }
+
+            return colorValue
+
+        } catch (e: Exception) { FileLog.e(e)
+            return 0
         }
-        FileLog.e("MonetUtils: unknown color token $token")
-        return 0
     }
 
     @JvmStatic
@@ -249,6 +303,19 @@ object MonetUtils {
         for (palette in 1..2) {
             loadRamp(resources, "n${palette}_", "system_neutral${palette}_")
         }
+
+        colorMap["mOutBubble"] = colorMap["a1_500"] ?: Color.parseColor("#8774e1")
+
+        colorMap["mBlack"] = Color.BLACK
+        colorMap["mWhite"] = Color.WHITE
+
+        colorMap["mRed200"] = Color.parseColor("#EF9A9A")
+        colorMap["mRed500"] = Color.parseColor("#F44336")
+        colorMap["mRed800"] = Color.parseColor("#C62828")
+        colorMap["mGreen200"] = Color.parseColor("#A5D6A7")
+        colorMap["mGreen500"] = Color.parseColor("#4CAF50")
+        colorMap["mGreen800"] = Color.parseColor("#2E7D32")
+
         loaded = colorMap.isNotEmpty()
     }
 

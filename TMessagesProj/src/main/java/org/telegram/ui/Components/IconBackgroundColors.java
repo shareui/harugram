@@ -1,5 +1,8 @@
 package org.telegram.ui.Components;
 
+import de.shareui.haru.monet.MonetUtils;
+import org.telegram.ui.ActionBar.Theme;
+
 public enum IconBackgroundColors {
     BLUE(0xFF1CA5ED, 0xFF1488E1),
     BLUE_ALT(0xFF1CA5ED, 0xFF1387E1),
@@ -21,5 +24,26 @@ public enum IconBackgroundColors {
     private IconBackgroundColors(int top, int bottom) {
         this.top = top;
         this.bottom = bottom;
+    }
+
+    public int getTop() {
+        if (Theme.isCurrentThemeMonet() && MonetUtils.isSupported()) {
+            boolean isDark = Theme.isCurrentThemeDark();
+            return MonetUtils.getColor(isDark ? "a1_800" : "a1_100");
+        }
+        return top;
+    }
+
+    public int getBottom() {
+        if (Theme.isCurrentThemeMonet() && MonetUtils.isSupported()) {
+            boolean isDark = Theme.isCurrentThemeDark();
+            return MonetUtils.getColor(isDark ? "a1_900" : "a1_200");
+        }
+        return bottom;
+    }
+
+    public static int getMonetIconTint() {
+        boolean isDark = Theme.isCurrentThemeDark();
+        return MonetUtils.getColor(isDark ? "a1_200" : "a1_600");
     }
 }

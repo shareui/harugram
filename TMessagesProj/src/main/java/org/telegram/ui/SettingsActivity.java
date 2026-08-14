@@ -690,15 +690,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         items.add(SettingCell.Factory.of(100, 0, 0, R.drawable.haru, "Haru"));
         items.add(UItem.asShadow(null));
         
-        items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
-        items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
-        items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
-        items.add(SettingCell.Factory.of(5, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), getString(R.string.SettingsNotificationsInfo)));
-        items.add(SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.top, IconBackgroundColors.BLUE_DEEP.bottom, R.drawable.settings_data, getString(R.string.SettingsData), getString(R.string.SettingsDataInfo)));
-        items.add(SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom, R.drawable.settings_folders, getString(R.string.SettingsFolders), getString(R.string.SettingsFoldersInfo)));
-        items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo)));
-        items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
-        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
+        items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.getTop(), IconBackgroundColors.BLUE.getBottom(), R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
+        items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.getTop(), IconBackgroundColors.ORANGE.getBottom(), R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
+        items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.getTop(), IconBackgroundColors.GREEN.getBottom(), R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
+        items.add(SettingCell.Factory.of(5, IconBackgroundColors.RED.getTop(), IconBackgroundColors.RED.getBottom(), R.drawable.settings_sounds, getString(R.string.SettingsNotifications), getString(R.string.SettingsNotificationsInfo)));
+        items.add(SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.getTop(), IconBackgroundColors.BLUE_DEEP.getBottom(), R.drawable.settings_data, getString(R.string.SettingsData), getString(R.string.SettingsDataInfo)));
+        items.add(SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.getTop(), IconBackgroundColors.BLUE_ALT.getBottom(), R.drawable.settings_folders, getString(R.string.SettingsFolders), getString(R.string.SettingsFoldersInfo)));
+        items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.getTop(), IconBackgroundColors.CYAN.getBottom(), R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo)));
+        items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.getTop(), IconBackgroundColors.ORANGE_DEEP.getBottom(), R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
+        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.getTop(), IconBackgroundColors.PURPLE.getBottom(), R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
         // Haru was moved to the top
 
         items.add(UItem.asShadow(null));
@@ -740,10 +740,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.SettingsHelp)));
-        items.add(SettingCell.Factory.of(17, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_ask, getString(R.string.AskAQuestion)));
-        items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_faq, getString(R.string.TelegramFAQ)));
-        items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_features, getString(R.string.TelegramFeatures)));
-        items.add(SettingCell.Factory.of(19, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_policy, getString(R.string.PrivacyPolicy)));
+        items.add(SettingCell.Factory.of(17, IconBackgroundColors.ORANGE.getTop(), IconBackgroundColors.ORANGE.getBottom(), R.drawable.settings_ask, getString(R.string.AskAQuestion)));
+        items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.getTop(), IconBackgroundColors.BLUE_LIGHT.getBottom(), R.drawable.settings_faq, getString(R.string.TelegramFAQ)));
+        items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.getTop(), IconBackgroundColors.PURPLE.getBottom(), R.drawable.settings_features, getString(R.string.TelegramFeatures)));
+        items.add(SettingCell.Factory.of(19, IconBackgroundColors.GREEN.getTop(), IconBackgroundColors.GREEN.getBottom(), R.drawable.settings_policy, getString(R.string.PrivacyPolicy)));
 
         if (BuildVars.LOGS_ENABLED || BuildVars.DEBUG_PRIVATE_VERSION) {
             items.add(UItem.asShadow(null));
@@ -1206,10 +1206,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             iconLayout.setVisibility(icon != 0 ? View.VISIBLE : View.GONE);
             titleView.setTranslationX(icon == 0 ? dp(2) : 0);
             subtitleView.setTranslationX(icon == 0 ? dp(2) : 0);
-
             iconBackground.setColor(iconColorTop, iconColorBottom);
             iconView.setImageResource(icon);
             if (iconColorTop == 0 && iconColorBottom == 0) {
+                iconView.setColorFilter(null);
                 iconView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
                 iconView.getLayoutParams().height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
                 iconView.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -1223,6 +1223,11 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                     iconView.setClipToOutline(true);
                 }
             } else {
+                if (Theme.isCurrentThemeMonet() && de.shareui.haru.monet.MonetUtils.isSupported()) {
+                    iconView.setColorFilter(new android.graphics.PorterDuffColorFilter(IconBackgroundColors.getMonetIconTint(), android.graphics.PorterDuff.Mode.SRC_IN));
+                } else {
+                    iconView.setColorFilter(null);
+                }
                 iconView.getLayoutParams().width = AndroidUtilities.dp(24);
                 iconView.getLayoutParams().height = AndroidUtilities.dp(24);
                 iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);

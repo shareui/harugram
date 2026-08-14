@@ -4784,9 +4784,9 @@ public class Theme {
         if (MonetUtils.isSupported()) {
             // the base color of each theme has to stay the one its asset was authored with,
             // otherwise the accent engine shifts every hue away from the system palette
-            addMonetTheme(MONET_LIGHT, "day.attheme", 0xFF56A2C9, 6);
-            addMonetTheme(MONET_DARK, "night.attheme", 0xFF6ABE3F, 7);
-            addMonetTheme(MONET_BLACK, "night.attheme", 0xFF6ABE3F, 8);
+            addMonetTheme(MONET_LIGHT, "material_l.attheme", 0xFF56A2C9, 6);
+            addMonetTheme(MONET_DARK, "material_d.attheme", 0xFF6ABE3F, 7);
+            addMonetTheme(MONET_BLACK, "material_b.attheme", 0xFF6ABE3F, 8);
         }
 
         String themesString = themeConfig.getString("themes2", null);
@@ -7142,11 +7142,11 @@ public class Theme {
 
     /** Matches a dynamic palette token inside an .attheme value, e.g. `a1_600` or `n2_100`. */
     private static boolean isMonetToken(String value) {
-        if (!MonetUtils.isSupported() || value.length() < 4) {
+        if (!MonetUtils.isSupported() || value.length() < 2) {
             return false;
         }
         char ramp = value.charAt(0);
-        return (ramp == 'a' || ramp == 'n') && Character.isDigit(value.charAt(1)) && value.charAt(2) == '_';
+        return ramp == 'a' || ramp == 'n' || ramp == 'm';
     }
 
     /** Entry point for the system telling us the dynamic palette was regenerated. */
