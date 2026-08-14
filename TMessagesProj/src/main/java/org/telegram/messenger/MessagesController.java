@@ -5214,7 +5214,6 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (peerColor == null)
                     continue;
                 peerColor.isDefaultName = peerColor.id < 7 && type == TYPE_NAME;
-                peerColor.harmonizeMonetColors();
                 if (!peerColor.hidden)
                     peerColors.colors.add(peerColor);
                 peerColors.colorsById.put(peerColor.id, peerColor);
@@ -5327,18 +5326,34 @@ public class MessagesController extends BaseController implements NotificationCe
         private final int[] colors = new int[6];
         private final int[] darkColors = new int[6];
 
-        // only applies under the Monet theme on SDK 31+, so custom peer color
-        // palettes stay visually consistent with the system dynamic accent
-        void harmonizeMonetColors() {
-            if (!Theme.isCurrentThemeMonet() || Build.VERSION.SDK_INT < 31) {
-                return;
+        private int[] monetColors;
+        private int[] monetDarkColors;
+        private int monetGeneration = -1;
+
+        /**
+         * Under the Monet theme the palette is rotated towards the system accent so it stops
+         * clashing with it. The harmonized copy is derived on demand and never written back to
+         * {@link #colors}, which is what gets serialized and shared with the server.
+         */
+        private int[] palette(boolean isDark) {
+            if (!MonetUtils.isSupported() || !(Theme.isCurrentThemeMonet() || Theme.isCurrentAccentMonet())) {
+                return isDark ? darkColors : colors;
             }
-            for (int i = 0; i < colors.length; i++) {
-                colors[i] = MonetUtils.harmonize(colors[i]);
+            final int generation = MonetUtils.getGeneration();
+            if (monetColors == null || monetGeneration != generation) {
+                monetColors = harmonized(colors);
+                monetDarkColors = harmonized(darkColors);
+                monetGeneration = generation;
             }
-            for (int i = 0; i < darkColors.length; i++) {
-                darkColors[i] = MonetUtils.harmonize(darkColors[i]);
+            return isDark ? monetDarkColors : monetColors;
+        }
+
+        private static int[] harmonized(int[] source) {
+            final int[] result = new int[source.length];
+            for (int i = 0; i < source.length; i++) {
+                result[i] = MonetUtils.harmonize(source[i]);
             }
+            return result;
         }
 
         public int getColor(int i, Theme.ResourcesProvider resourcesProvider) {
@@ -5347,43 +5362,43 @@ public class MessagesController extends BaseController implements NotificationCe
                 return Theme.getColor(Theme.keys_avatar_nameInMessage[id], resourcesProvider);
             }
             final boolean isDark = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
-            return (isDark ? darkColors : colors)[i];
+            return palette(isDark)[i];
         }
         public int getLvl(boolean isGroup) {
             return isGroup ? groupLvl : channelLvl;
         }
         public int getColor1(boolean isDark) {
-            return (isDark ? darkColors : colors)[0];
+            return palette(isDark)[0];
         }
         public int getColor2(boolean isDark) {
-            return (isDark ? darkColors : colors)[1];
+            return palette(isDark)[1];
         }
         public int getColor3(boolean isDark) {
-            return (isDark ? darkColors : colors)[2];
+            return palette(isDark)[2];
         }
         public int getColor4(boolean isDark) {
-            return (isDark ? darkColors : colors)[3];
+            return palette(isDark)[3];
         }
         public int getColor5(boolean isDark) {
-            return (isDark ? darkColors : colors)[4];
+            return palette(isDark)[4];
         }
         public int getColor6(boolean isDark) {
-            return (isDark ? darkColors : colors)[5];
+            return palette(isDark)[5];
         }
         public int getColor1() {
-            return (Theme.isCurrentThemeDark() ? darkColors : colors)[0];
+            return palette(Theme.isCurrentThemeDark())[0];
         }
         public int getColor2() {
-            return (Theme.isCurrentThemeDark() ? darkColors : colors)[1];
+            return palette(Theme.isCurrentThemeDark())[1];
         }
         public int getColor3() {
-            return (Theme.isCurrentThemeDark() ? darkColors : colors)[2];
+            return palette(Theme.isCurrentThemeDark())[2];
         }
         public int getColor4() {
-            return (Theme.isCurrentThemeDark() ? darkColors : colors)[3];
+            return palette(Theme.isCurrentThemeDark())[3];
         }
         public int getColor5() {
-            return (Theme.isCurrentThemeDark() ? darkColors : colors)[4];
+            return palette(Theme.isCurrentThemeDark())[4];
         }
         public boolean hasColor2() {
             return getColor2() != getColor1();

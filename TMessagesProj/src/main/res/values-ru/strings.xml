@@ -336,4 +336,7 @@
     <string name="HaruLogDisplay">Отображение логов</string>
     <string name="HaruInstall">Установить</string>
     <string name="Close">Закрыть</string>
+    <string name="HaruThemeMonetLight">Monet светлая</string>
+    <string name="HaruThemeMonetDark">Monet тёмная</string>
+    <string name="HaruThemeMonetBlack">Monet чёрная</string>
 </resources>

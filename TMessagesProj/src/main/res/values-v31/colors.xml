@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget text and dividers on the dynamic palette. The widget background and the badge already
+  follow it through android:Theme.DeviceDefault.DayNight and ?android:attr/colorAccent, so only
+  the foreground colors were left hardcoded.
+-->
+<resources>
+    <color name="widget_name">@android:color/system_neutral1_900</color>
+    <color name="widget_time">@android:color/system_neutral2_500</color>
+    <color name="widget_text">@android:color/system_neutral2_500</color>
+    <color name="widget_divider">@android:color/system_neutral2_100</color>
+    <color name="widget_action_text">@android:color/system_accent1_600</color>
+    <color name="widget_edit_text">@android:color/system_neutral2_500</color>
+</resources>

@@ -1,0 +1,35 @@
+<!--
+  ~ This is the source code of Telegram for Android v. 5.x.x.
+  ~ It is licensed under GNU GPL v. 2 or later.
+  ~ You should have received a copy of the license in this archive (see LICENSE).
+  ~
+  ~ Copyright Nikolai Kudashov, 2013-2018.
+  -->
+
+<!--
+  Dark launch window for Android 12+. Without this file the night qualifier outranks the version
+  one, so a dark device fell back to values-night and lost both the dynamic colors and the splash
+  screen icon configured in values-v31.
+-->
+<resources
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <style name="Theme.TMessages.Start" parent="Theme.AppCompat.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:actionBarStyle">@style/ActionBar.Transparent.TMessages.Start</item>
+        <item name="android:colorBackground">@android:color/system_neutral1_900</item>
+        <item name="android:windowBackground">@android:color/system_neutral1_900</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:colorPrimaryDark">#1c242e</item>
+        <item name="android:colorPrimary">#232d3a</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:textViewStyle">@style/MyTextViewStyle</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/tg_splash_320</item>
+        <item name="android:windowSplashScreenAnimationDuration">@integer/splash_screen_duration</item>
+        <item name="android:windowSplashScreenBackground">@android:color/system_neutral1_900</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+    </style>
+
+</resources>

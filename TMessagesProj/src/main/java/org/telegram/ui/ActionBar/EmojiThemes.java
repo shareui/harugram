@@ -35,6 +35,8 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import de.shareui.haru.monet.MonetUtils;
+
 public class EmojiThemes {
 
     public static final String REMOVED_EMOJI = "❌";
@@ -338,7 +340,7 @@ public class EmojiThemes {
 
     public SparseIntArray getPreviewColors(int currentAccount, int index) {
         SparseIntArray currentColors = items.get(index).currentPreviewColors;
-        if (currentColors != null) {
+        if (currentColors != null && items.get(index).currentPreviewColorsMonetGeneration == MonetUtils.getGeneration()) {
             return currentColors;
         }
 
@@ -400,10 +402,12 @@ public class EmojiThemes {
         } else {
             currentColors = currentColorsNoAccent;
         }
+        Theme.applyMonetColorsToChatTheme(currentColors);
 
         SparseIntArray fallbackKeys = Theme.getFallbackKeys();
         SparseIntArray array = new SparseIntArray();
         items.get(index).currentPreviewColors = array;
+        items.get(index).currentPreviewColorsMonetGeneration = MonetUtils.getGeneration();
         try {
             for (int i = 0; i < previewColorKeys.length; i++) {
                 int key = previewColorKeys[i];
@@ -475,6 +479,7 @@ public class EmojiThemes {
         } else {
             currentColors = currentColorsNoAccent;
         }
+        Theme.applyMonetColorsToChatTheme(currentColors);
 
         SparseIntArray fallbackKeys = Theme.getFallbackKeys();
         for (int i = 0; i < fallbackKeys.size(); i++) {
@@ -682,6 +687,7 @@ public class EmojiThemes {
         if (themeAccent != null) {
             themeAccent.fillAccentColors(currentColorsNoAccent, currentColors);
         }
+        Theme.applyMonetColors(themeInfo, currentColors);
         return currentColors;
     }
 
@@ -773,6 +779,8 @@ public class EmojiThemes {
         int settingsIndex;
         public int accentId = -1;
         public SparseIntArray currentPreviewColors;
+        // the palette generation the cached preview was tinted with, see MonetUtils
+        int currentPreviewColorsMonetGeneration;
         private String wallpaperLink;
 
         public int inBubbleColor;

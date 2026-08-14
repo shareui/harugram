@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark counterpart of values-v31/colors.xml. -->
+<resources>
+    <color name="widget_name">@android:color/system_neutral1_50</color>
+    <color name="widget_time">@android:color/system_neutral2_300</color>
+    <color name="widget_text">@android:color/system_neutral2_300</color>
+    <color name="widget_divider">@android:color/system_neutral1_700</color>
+    <color name="widget_action_text">@android:color/system_accent1_200</color>
+    <color name="widget_edit_text">@android:color/system_neutral2_300</color>
+</resources>

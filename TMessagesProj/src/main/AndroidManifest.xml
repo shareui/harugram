@@ -128,12 +128,6 @@
         </activity-alias>
 
         <activity-alias
-            android:enabled="true"
-            android:name="org.telegram.messenger.Defaulticon"
-            android:targetActivity="org.telegram.ui.LaunchActivity"
-            android:exported="true" />
-
-        <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.VintageIcon"
             android:targetActivity="org.telegram.ui.LaunchActivity"

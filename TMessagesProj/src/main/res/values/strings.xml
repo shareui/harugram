@@ -11219,6 +11219,9 @@
     <string name="HaruSdkPasswordInfo">This archive is encrypted. Enter the password it was built with.</string>
     <string name="HaruSdkPasswordHint">Password</string>
     <string name="HaruSdkErrorPassword">Wrong password. Try again.</string>
+    <string name="HaruThemeMonetLight">Monet Light</string>
+    <string name="HaruThemeMonetDark">Monet Dark</string>
+    <string name="HaruThemeMonetBlack">Monet Black</string>
     <string name="HaruSdkShare">Share</string>
     <string name="HaruSdkErrorShare">Error sending file</string>
     <string name="HaruSdkRestart">Restart</string>
